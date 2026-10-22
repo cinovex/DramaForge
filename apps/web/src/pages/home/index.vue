@@ -10,9 +10,10 @@
         <button class="navItem" :class="{ active: homeSection === 'create' && creationMode === 'prompt' }" type="button" @click="selectCreationMode('prompt')"><icon-sparkles :size="18" />创作</button>
         <button class="navItem" :class="{ active: homeSection === 'create' && creationMode === 'marketing' }" type="button" @click="selectCreationMode('marketing')"><icon-speakerphone :size="18" />营销 Agent</button>
         <button class="navItem" :class="{ active: homeSection === 'create' && creationMode === 'script' }" type="button" @click="selectCreationMode('script')"><icon-movie :size="18" />短剧 Agent</button>
-        <button class="navItem" type="button" @click="openRecentWorkspace"><icon-layout-grid :size="18" />画布</button>
+        <button class="navItem" type="button" @click="createBlankCanvas"><icon-layout-grid :size="18" />创建画布</button>
         <span class="navDivider" />
         <span class="navCaption">项目</span>
+        <button class="navItem" :class="{ active: homeSection === 'projects' }" type="button" @click="showProjects"><icon-folder :size="18" />项目资源</button>
         <button class="navItem" :class="{ active: homeSection === 'assets' }" type="button" @click="scrollToProjects"><icon-folder-open :size="18" />资产库</button>
         <button class="navItem" :class="{ active: homeSection === 'skills' }" type="button" @click="showSkills"><icon-book :size="18" />技能</button>
         <div class="sidebarRecent">
@@ -34,13 +35,13 @@
     </el-aside>
     <el-container class="homeShell">
       <el-header class="pageHeader">
-        <div class="headerBreadcrumb"><span>工作空间</span><span class="breadcrumbSlash">/</span><strong>{{ homeSection === 'assets' ? '资产库' : homeSection === 'skills' ? '技能' : creationMode === 'script' ? '短剧工作室' : creationMode === 'marketing' ? '营销 Agent' : '创作' }}</strong></div>
+        <div class="headerBreadcrumb"><span>工作空间</span><span class="breadcrumbSlash">/</span><strong>{{ homeSection === 'projects' ? '项目资源' : homeSection === 'assets' ? '资产库' : homeSection === 'skills' ? '技能' : creationMode === 'script' ? '短剧工作室' : creationMode === 'marketing' ? '营销 Agent' : '创作' }}</strong></div>
       </el-header>
       <el-main class="pageContent">
       <assetLibrary v-if="homeSection === 'assets'" @openProject="openLibraryProject" />
       <skillLibrary v-else-if="homeSection === 'skills'" @select="selectLibrarySkill" />
       <template v-else>
-      <section class="creationPanel" aria-label="创建项目">
+      <section v-if="homeSection === 'create'" class="creationPanel" aria-label="创建项目">
         <div v-if="creationMode === 'script'" class="studioTitle scriptStudioTitle">短剧工作室</div>
         <div v-else class="studioTitle">
           <span>开启</span>
@@ -126,7 +127,7 @@
           </div>
           <el-alert v-if="scriptError" class="scriptError" :title="scriptError" type="error" :closable="false" showIcon />
 </div>
-<div v-else-if="studioTab === 'canvas'" class="scriptDropZone"><strong>在创意画布中自由创作</strong><el-button @click="openRecentWorkspace">打开创意画布</el-button></div>
+<div v-else-if="studioTab === 'canvas'" class="scriptDropZone"><strong>在创意画布中自由创作</strong><el-button @click="createBlankCanvas">创建空白画布</el-button></div>
 <div v-else class="scriptDropZone"><strong>{{ studioTab === 'writer' ? 'AI 编剧' : '重制转绘' }}</strong><el-input v-model="pippitMessage" type="textarea" :rows="5" :placeholder="studioTab === 'writer' ? '描述你想创作的故事、人物和要求' : '描述对参考视频的改编、角色、场景和画风要求'" /><input v-if="studioTab === 'remix'" type="file" accept="video/mp4,video/quicktime,video/webm" @change="pippitReference = ($event.target as HTMLInputElement).files?.[0]" /><span>由 Pippit 海外 API 处理，可能消耗积分</span><el-button :loading="pippitBusy" :disabled="!pippitMessage.trim()" @click="submitStudioTask">提交创作</el-button><el-button v-if="pippitTask" :loading="pippitBusy" @click="refreshStudioTask">刷新任务进度</el-button><section v-if="pippitTask" class="pippitTaskPanel" aria-label="Pippit 创作任务">
   <div class="pippitTaskHeader"><strong>{{ pippitStatusLabel }}</strong><div><el-button :loading="pippitBusy" @click="importStudioResults">保存素材到资产库</el-button><el-button :disabled="pippitBusy" @click="continueStudioTask">继续修改 / 回复</el-button></div></div>
   <p v-if="pippitError" role="alert">{{ pippitError }}</p>
@@ -140,7 +141,7 @@
           <h2>创作任务</h2><button v-for="task in studioTasks" :key="task.run_id" @click="restoreStudioTask(task)"><span>{{ task.message }}</span><small>{{ pippitStatusNames[task.status] || task.status }}</small></button>
         </section>
       </section>
-      <section v-if="creationMode !== 'script'" class="recommendations" aria-labelledby="recommendationsTitle">
+      <section v-if="homeSection === 'create' && creationMode !== 'script'" class="recommendations" aria-labelledby="recommendationsTitle">
         <div class="sectionHeader"><h2 id="recommendationsTitle">推荐创作</h2><span>从一个工作流快速开始</span></div>
         <div class="recommendationGrid">
           <button class="recommendationCard" type="button" @click="selectCreationMode('script')"><span class="recommendationIcon"><icon-movie :size="20" /></span><strong>短剧导演工作流</strong><small>剧本分析、人物连续性与镜头设计</small><icon-arrow-up-right class="recommendationArrow" :size="16" /></button>
@@ -150,10 +151,10 @@
       </section>
       <section id="recentProjects" class="projectList" aria-labelledby="projectListTitle">
         <div class="sectionHeader">
-          <div><h2 id="projectListTitle">{{ creationMode === 'script' ? '我的草稿' : '最近项目' }}</h2><span>{{ creationMode === 'script' ? '继续短剧创作' : '继续你的创作' }}</span></div>
+          <div><h2 id="projectListTitle">{{ homeSection === 'projects' ? '全部项目' : creationMode === 'script' ? '我的草稿' : '最近项目' }}</h2><span>{{ creationMode === 'script' ? '继续短剧创作' : '继续你的创作' }}</span></div>
           <el-space v-if="creationMode !== 'script'" wrap>
             <el-button :icon="IconFolderOpen" :disabled="creating || opening" @click="openProject()">导入项目</el-button>
-            <el-button :icon="IconFolderPlus" :disabled="creating || opening" @click="createProject(false)">添加项目</el-button>
+            <el-button :icon="IconFolderPlus" :disabled="creating || opening" @click="createBlankCanvas">创建画布</el-button>
             <el-button circle :icon="sortDescending ? IconSortDescending : IconSortAscending" :aria-label="sortDescending ? '按时间降序' : '按时间升序'" @click="sortDescending = !sortDescending" />
             <el-radio-group v-model="viewMode" aria-label="项目视图">
               <el-radio-button value="grid" aria-label="网格视图"><icon-layout-grid :size="16" /></el-radio-button>
@@ -183,11 +184,11 @@
               <icon-movie class="projectIcon" :size="28" aria-hidden="true" />
               <span class="projectInfo">
                 <span class="projectName" :title="item.name">{{ item.name || `短剧项目 ${item.id}` }}</span>
-                <span class="projectPath">短剧创作 · {{ dramaForgeStatusLabel(item.status) }}</span>
+                <span class="projectPath">{{ item.project_type === 'canvas' ? '画布项目' : '短剧创作' }} · {{ dramaForgeStatusLabel(item.status) }}</span>
                 <span class="projectTime">创建于 {{ item.created_at ? new Date(item.created_at).toLocaleString(locale, { hour12: false }) : '时间未知' }}</span>
               </span>
             </button>
-            <el-tag class="dramaProjectTag" size="small" effect="plain">短剧</el-tag>
+            <el-tag class="dramaProjectTag" size="small" effect="plain">{{ item.project_type === 'canvas' ? '画布' : '短剧' }}</el-tag>
           </el-card>
         </div>
       </section>
@@ -234,7 +235,7 @@ const settingsVisible = ref(false);
 const mobileConnectVisible = ref(false);
 const mobileConnect = defineAsyncComponent(() => import("@/components/mobileConnect.vue"));
 const router = useRouter();
-const homeSection = computed(() => router.currentRoute.value.query.section === "assets" ? "assets" : router.currentRoute.value.query.section === "skills" ? "skills" : "create");
+const homeSection = computed(() => { const section = router.currentRoute.value.query.section; return section === "projects" || section === "assets" || section === "skills" ? section : "create"; });
 const creationMode = ref<"prompt" | "marketing" | "script">("prompt");
 const creationEngine = ref("studio");
 const creating = ref(false);
@@ -407,7 +408,7 @@ const draggingAttachments = ref(false);
 let attachmentDragDepth = 0;
 const workspaceStore = useWorkspaceStore();
 const { project, projectList } = storeToRefs(workspaceStore);
-type DramaForgeProjectSummary = { id: number; name: string; status?: string; created_at?: string };
+type DramaForgeProjectSummary = { id: number; name: string; status?: string; created_at?: string; workspace_directory?: string; project_type?: string };
 const dramaForgeProjects = ref<DramaForgeProjectSummary[]>([]);
 const workspaceDirectory = ref(project.value?.directory ?? "");
 const placeholderPhrases = [
@@ -496,7 +497,8 @@ const reasoningEffort = ref("");
 const openCanvasAfterPrompt = ref(true);
 const sortDescending = ref(true);
 const viewMode = ref("grid");
-const sortedProjects = computed(() => [...projectList.value].sort((left, right) =>
+function normalizedDirectory(path: string) { return path.replaceAll("\\", "/").replace(/\/+$/, "").toLowerCase(); }
+const sortedProjects = computed(() => projectList.value.filter(project => !dramaForgeProjects.value.some(item => item.workspace_directory && normalizedDirectory(item.workspace_directory) === normalizedDirectory(project.directory))).sort((left, right) =>
   sortDescending.value ? right.lastOpenedAt - left.lastOpenedAt : left.lastOpenedAt - right.lastOpenedAt
 ));
 const sortedDramaForgeProjects = computed(() => [...dramaForgeProjects.value].sort((left, right) => {
@@ -525,6 +527,12 @@ async function openDramaForgeProject(item: DramaForgeProjectSummary) {
     const response = await fetch(dramaForgeApiUrl(`projects/${encodeURIComponent(item.id)}`));
     const projectData = await response.json().catch(() => ({}));
     if (!response.ok || !projectData.id) throw new Error(typeof projectData.detail === "string" ? projectData.detail : "无法读取短剧项目");
+    if (projectData.project_type === "canvas") {
+      await workspaceStore.openProject(projectData.workspace_directory);
+      workspaceStore.renameProject(projectData.workspace_directory, projectData.name);
+      await router.push("/workspace");
+      return;
+    }
     (window as Window & { __DRAMAFORGE_PROJECT__?: Record<string, unknown> }).__DRAMAFORGE_PROJECT__ = projectData;
     await router.push({ path: "/workspace", query: { dramaforgeProjectId: String(item.id) } });
   } catch (error) {
@@ -626,14 +634,26 @@ async function openLibraryProject(id: number) {
   else ElMessage.warning("项目未找到，请刷新项目列表");
 }
 
-async function openRecentWorkspace() {
-  if (project.value) return openProject(project.value);
-  const latestDrama = sortedDramaForgeProjects.value[0];
-  const latestProject = sortedProjects.value[0];
-  if (latestDrama) return openDramaForgeProject(latestDrama);
-  if (latestProject) return openProject(latestProject);
-  selectCreationMode("prompt");
-  await openProject();
+function showProjects() {
+  creationMode.value = "prompt";
+  void router.push({ path: "/home", query: { section: "projects" } });
+}
+async function createBlankCanvas() {
+  if (creating.value || opening.value) return;
+  creating.value = true;
+  try {
+    const response = await fetch(dramaForgeApiUrl("projects"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: "未命名画布", project_type: "canvas" }) });
+    if (!response.ok) throw new Error("创建画布项目失败，请重试");
+    const created = await response.json();
+    const detail = await fetch(dramaForgeApiUrl(`projects/${created.id}`));
+    if (!detail.ok) throw new Error("项目已创建，但读取工作目录失败，请从项目资源重试");
+    const projectData = await detail.json();
+    await useWorkspaceFiles(projectData.workspace_directory).writeJson("画布1.json", { toonflowCanvas: true, nodes: [], edges: [], viewport: { x: 0, y: 0, zoom: 1 } }, true);
+    await workspaceStore.openProject(projectData.workspace_directory);
+    workspaceStore.renameProject(projectData.workspace_directory, projectData.name);
+    await router.push("/workspace");
+  } catch (error) { ElMessage.error(error instanceof Error ? error.message : "创建画布失败"); }
+  finally { creating.value = false; }
 }
 
 function pasteAttachments(event: ClipboardEvent) {

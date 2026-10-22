@@ -3,7 +3,7 @@ import { mkdir, readFile, realpath, stat, unlink } from "@toonflow/file";
 import { join, relative } from "node:path";
 import { mediaProviders, type Provider } from "@toonflow/providers";
 import type { GeneratedMedia, MediaGenerationRequest, MediaModel, MediaReference } from "@toonflow/tools-scaffold/runtime";
-import conf from "@/utils/conf";
+import readRuntimeSettings from "@/utils/conf/runtimeSettings";
 import { getMediaProvider, listMediaProviders, loadMediaProviderSource } from "@/utils/media/provider";
 import { lockWorkspaceFiles, resolveWorkspacePath, writeWorkspaceFile } from "@/utils/workspace/files";
 import { beginGeneration, getProviderPrice } from "@/utils/media/billing";
@@ -137,7 +137,7 @@ async function prepareRequest<T>(directory: string | undefined, mediaType: "imag
 async function configuredProvider(request: MediaGenerationRequest, mediaType: "image" | "video" | "audio", signal?: AbortSignal, directory?: string) {
   const info = await getMediaProvider(request.providerId);
   if (!info.models.some(model => model.id === request.modelId && model.type === mediaType)) invalid("所选媒体模型不存在或类型不匹配，请重新选择");
-  const configurations = record(conf.get("settings", {}).mediaProviderConfigs);
+  const configurations = record((await readRuntimeSettings()).mediaProviderConfigs);
   return loadMediaProviderSource(info.source, record(configurations[info.id]), signal, undefined, directory);
 }
 

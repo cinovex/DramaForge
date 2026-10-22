@@ -3,7 +3,7 @@ import { ModelRuntime } from "@earendil-works/pi-coding-agent";
 import { getConfiguredModel } from "@/utils/ai";
 
 export async function createAgentModel(providerId: string, modelId: string, thinkingLevel = "off") {
-  const configured = getConfiguredModel(providerId, modelId);
+  const configured = await getConfiguredModel(providerId, modelId);
   const { provider, model, baseUrl } = configured;
   const runtime = await ModelRuntime.create({ credentials: new InMemoryCredentialStore(), modelsPath: null, refreshOnCreate: false });
   runtime.registerProvider(providerId, {

@@ -1,6 +1,8 @@
 import { resolve } from "node:path";
 import { createApp } from "./app";
 
+process.env.DRAMAFORGE_SETTINGS_URL ??= "http://127.0.0.1:8000/api/settings/get";
+
 const startTime = Date.now();
 const realPort = Number(process.env.TOONFLOW_PORT ?? 3000);
 // 源码位于 apps/server/src，生产构建位于 build/server，均从文件位置定位根目录。

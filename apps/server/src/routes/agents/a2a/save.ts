@@ -17,7 +17,7 @@ export default Router().put("/", validateFields({
   let directory = req.body.directory as string;
   // ACT: 关闭入口不依赖旧目录或模型仍存在；重新开启时再次严格校验。
   if (enabled) {
-    u.ai.getConfiguredModel(providerId, modelId);
+    await u.ai.getConfiguredModel(providerId, modelId);
     directory = await u.a2aSettings.resolveA2aWorkspace(directory);
   }
   const previous = u.a2aSettings.getA2aSettings();

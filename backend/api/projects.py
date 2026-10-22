@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, Query
 from sqlalchemy.orm import Session
 from database import get_db
 from models.drama import Project, Shot, ImageSource
+from typing import Literal
 from pydantic import BaseModel
 from services.generation_design import Ratio, effective_options
 import os, uuid, json, shutil, re
@@ -16,11 +17,15 @@ class ProjectCreate(BaseModel):
     name: str
     script_text: str = ""
     aspect_ratio: Ratio = "9:16"
+    project_type: Literal["drama", "canvas"] = "drama"
 
 
 @router.get("")
 def list_projects(db: Session = Depends(get_db)):
-    return db.query(Project).order_by(Project.created_at.desc()).all()
+    return [{**{column.name: getattr(project, column.name) for column in Project.__table__.columns},
+             "workspace_directory": str(project_directory(project.id)),
+             "project_type": (project.generation_settings or {}).get("project_type", "drama")}
+            for project in db.query(Project).order_by(Project.created_at.desc()).all()]
 
 
 @router.get("/{project_id}")
@@ -32,6 +37,7 @@ def get_project(project_id: int, db: Session = Depends(get_db)):
     from models.drama import Outline, Character, Scene, Prop, Shot
     result = {
         "id": p.id, "name": p.name, "status": p.status,
+        "project_type": (p.generation_settings or {}).get("project_type", "drama"),
         "workspace_directory": str(ensure_project_directory(p.id)),
         "script_text": p.script_text, "generation_settings": effective_options(p),
         "planned_duration": sum(sh.duration or 0 for sh in p.shots),
@@ -213,7 +219,7 @@ def _reconstruct_legacy_image_prompt(project, media_url: str, db: Session) -> st
 
 @router.post("")
 def create_project(body: ProjectCreate, db: Session = Depends(get_db)):
-    p = Project(name=body.name, script_text=body.script_text, status="draft", generation_settings={"aspect_ratio":body.aspect_ratio,"resolution":"720P"})
+    p = Project(name=body.name, script_text=body.script_text, status="draft", generation_settings={"aspect_ratio":body.aspect_ratio,"resolution":"720P","project_type":body.project_type})
     db.add(p)
     db.commit()
     db.refresh(p)

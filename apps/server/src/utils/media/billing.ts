@@ -2,7 +2,7 @@ import { createHash, createHmac, randomBytes } from "node:crypto";
 import type { Response } from "express";
 import { z } from "zod";
 import type { ProviderBalance, ProviderPrice, ProviderPriceRequest } from "@toonflow/providers";
-import conf from "@/utils/conf";
+import readRuntimeSettings from "@/utils/conf/runtimeSettings";
 import { getMediaProvider, loadMediaProviderSource } from "@/utils/media/provider";
 
 type RuntimeProvider = Awaited<ReturnType<typeof loadMediaProviderSource>>;
@@ -117,7 +117,7 @@ export async function getProviderBalance(providerId: string, apiKey?: string): P
     // ACT: 仅配置文本 TF-Router 的账户也可查余额；缺省查询方法由加载器补齐，不安装媒体文件。
     return 'export default { id: "tfRouter", label: "TF-router", rules: [], models: [] };';
   });
-  const configs = conf.get("settings", {}).mediaProviderConfigs as Record<string, Record<string, unknown>> | undefined;
+  const configs = (await readRuntimeSettings()).mediaProviderConfigs as Record<string, Record<string, unknown>> | undefined;
   const provider = await loadMediaProviderSource(source, { ...configs?.[providerId], ...(apiKey === undefined ? {} : { apiKey }) });
   const account = getAccount(provider);
   if (account.provider && account.provider.sourceRevision !== provider.sourceRevision) account.epoch++;
