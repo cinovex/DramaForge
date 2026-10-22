@@ -189,6 +189,7 @@
               </span>
             </button>
             <el-tag class="dramaProjectTag" size="small" effect="plain">{{ item.project_type === 'canvas' ? '画布' : '短剧' }}</el-tag>
+            <div class="projectActions"><el-button text type="danger" :icon="IconFolderMinus" :disabled="creating || opening || deletingProjectId !== null" :loading="deletingProjectId === item.id" :aria-label="`删除项目 ${item.name}`" @click="deleteDramaForgeProject(item)">删除</el-button></div>
           </el-card>
         </div>
       </section>
@@ -410,6 +411,7 @@ const workspaceStore = useWorkspaceStore();
 const { project, projectList } = storeToRefs(workspaceStore);
 type DramaForgeProjectSummary = { id: number; name: string; status?: string; created_at?: string; workspace_directory?: string; project_type?: string };
 const dramaForgeProjects = ref<DramaForgeProjectSummary[]>([]);
+const deletingProjectId = ref<number | null>(null);
 const workspaceDirectory = ref(project.value?.directory ?? "");
 const placeholderPhrases = [
   "描述你想创作的内容，让灵感从这里开始…",
@@ -517,7 +519,23 @@ async function fetchDramaForgeProjects() {
 }
 
 function dramaForgeStatusLabel(status?: string) {
-  return ({ draft: "草稿", analyzing: "分析中", ready: "已就绪", producing: "制作中", done: "已完成" } as Record<string, string>)[status || ""] || status || "草稿";
+  return ({ draft: "草稿", analyzing: "分析中", analysis_failed: "分析失败", ready: "已就绪", producing: "制作中", done: "已完成" } as Record<string, string>)[status || ""] || status || "草稿";
+}
+
+async function deleteDramaForgeProject(item: DramaForgeProjectSummary) {
+  if (deletingProjectId.value !== null) return;
+  const confirmed = await ElMessageBox.confirm(`确定删除“${item.name}”？项目记录和专属素材将被永久删除，无法恢复。`, "删除项目", { type: "warning", confirmButtonText: "删除项目", cancelButtonText: "取消" }).then(() => true, () => false);
+  if (!confirmed) return;
+  deletingProjectId.value = item.id;
+  try {
+    const response = await fetch(dramaForgeApiUrl(`projects/${item.id}`), { method: "DELETE" });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(typeof result.detail === "string" ? result.detail : "删除失败，请重试");
+    if (item.workspace_directory) workspaceStore.removeProject(item.workspace_directory);
+    dramaForgeProjects.value = dramaForgeProjects.value.filter(project => project.id !== item.id);
+    ElMessage.success("项目已删除");
+  } catch (error) { ElMessage.error(error instanceof Error ? error.message : "删除失败，请重试"); }
+  finally { deletingProjectId.value = null; }
 }
 
 async function openDramaForgeProject(item: DramaForgeProjectSummary) {
@@ -1244,6 +1262,7 @@ async function createProject(fromPrompt = true) {
           }
 
           .dramaProjectTag { position: absolute; top: 12px; right: 12px; }
+          &.dramaProjectCard .projectActions { top: auto; bottom: 8px; right: 12px; }
         }
 
         .projectEntry {

@@ -26,6 +26,14 @@
         :saveNode="saveDocumentNode" />
     </keep-alive>
     <workspaceMenu class="workspaceMenu" />
+    <section v-if="analysisProject && (analysisProject.status === 'analyzing' || analysisProject.analysis_state?.status === 'failed' || analysisProject.analysis_state?.status === 'done')" class="analysisStatus" role="status" aria-live="polite">
+      <strong>{{ analysisProject.status === 'analyzing' ? '正在分析剧本' : analysisProject.analysis_state?.status === 'failed' ? '剧本分析失败' : '剧本分析完成' }}</strong>
+      <span>{{ analysisProject.analysis_state?.status === 'failed' ? analysisProject.analysis_state.error : analysisProject.analysis_state?.progress }}</span>
+      <small v-if="analysisProject.status === 'analyzing'">分析结果会自动更新到画布，无需重复提交。</small>
+      <el-button v-if="analysisProject.analysis_state?.status === 'failed'" size="small" :loading="analysisRetrying" @click="retryAnalysis">重试分析</el-button>
+      <el-button v-if="analysisRefreshError" size="small" @click="refreshDramaForgeProject(String(analysisProject.id))">刷新状态</el-button>
+      <span v-if="analysisRefreshError" role="alert">{{ analysisRefreshError }}</span>
+    </section>
     <div class="workspaceTools">
       <el-segmented :modelValue="activePanel" class="panelSwitcher" :options="panelOptions" size="small" aria-label="切换面板" @change="switchPanel">
         <template #default="{ item }">
@@ -235,6 +243,8 @@ type DramaForgeProject = {
   status?: string;
   workspace_directory?: string;
   outline?: { title?: string };
+  analysis_state?: { status?: string; progress?: string; error?: string };
+  shots?: unknown[];
   [key: string]: unknown;
 };
 type DramaForgeWindow = Window & {
@@ -246,6 +256,23 @@ let dramaForgeRefreshTimer: ReturnType<typeof setTimeout> | undefined;
 let dramaForgeRefreshStopped = false;
 const lastDramaForgeSync = new Map<number, string>();
 let registeredDramaForgeBridge: NonNullable<DramaForgeWindow["__DRAMAFORGE_CANVAS_BRIDGE__"]> | undefined;
+const analysisProject = ref<DramaForgeProject | null>(null);
+const analysisRetrying = ref(false);
+const analysisRefreshError = ref("");
+
+async function retryAnalysis() {
+  const project = analysisProject.value;
+  if (!project || analysisRetrying.value) return;
+  analysisRetrying.value = true;
+  try {
+    const action = project.shots?.length ? "enrich" : "analyze";
+    const response = await fetch(dramaForgeApiUrl(`projects/${project.id}/${action}`), { method: "POST" });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(typeof result.detail === "string" ? result.detail : "分析启动失败");
+    await refreshDramaForgeProject(String(project.id));
+  } catch (error) { ElMessage.error(error instanceof Error ? error.message : "分析启动失败"); }
+  finally { analysisRetrying.value = false; }
+}
 
 function dramaForgeCanvasSignature(project: DramaForgeProject) {
   return JSON.stringify({
@@ -288,6 +315,7 @@ async function syncDramaForgeProject(project: DramaForgeProject, force = false) 
 function handleDramaForgeProject(event: Event) {
   const project = (event as CustomEvent<DramaForgeProject>).detail;
   if (!project || String(route.query.dramaforgeProjectId ?? "") !== String(project.id)) return;
+  analysisProject.value = project;
   void syncDramaForgeProject(project).catch(error => {
     console.error("DramaForge 项目画布同步失败：", error);
     ElMessage.error(error instanceof Error ? error.message : "项目画布加载失败");
@@ -296,16 +324,19 @@ function handleDramaForgeProject(event: Event) {
 
 async function refreshDramaForgeProject(projectId: string) {
   if (dramaForgeRefreshStopped) return;
+  if (dramaForgeRefreshTimer) clearTimeout(dramaForgeRefreshTimer);
   try {
     const response = await fetch(dramaForgeApiUrl(`projects/${encodeURIComponent(projectId)}`));
     if (!response.ok) throw new Error("DramaForge 项目读取失败");
     const project = await response.json() as DramaForgeProject;
+    analysisRefreshError.value = "";
     (window as DramaForgeWindow).__DRAMAFORGE_PROJECT__ = project;
     window.dispatchEvent(new CustomEvent("dramaforge:project-update", { detail: project }));
     if (project.status === "analyzing") dramaForgeRefreshTimer = setTimeout(() => void refreshDramaForgeProject(projectId), 5000);
   } catch (error) {
     console.error("DramaForge 项目刷新失败：", error);
-    ElMessage.error(error instanceof Error ? error.message : "项目分析状态刷新失败");
+    analysisRefreshError.value = error instanceof Error ? error.message : "项目分析状态刷新失败";
+    dramaForgeRefreshTimer = setTimeout(() => void refreshDramaForgeProject(projectId), 5000);
   }
 }
 
@@ -479,6 +510,25 @@ function saveDocumentNode(directory: string, canvasPath: string, nodeId: string,
   width: 100%;
   height: 100dvh;
   background-color: var(--el-bg-color);
+
+  .analysisStatus {
+    position: absolute;
+    top: 70px;
+    left: 16px;
+    z-index: 6;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    max-width: min(440px, calc(100vw - 32px));
+    padding: 16px;
+    border: 1px solid var(--el-border-color);
+    border-radius: 16px;
+    background: var(--el-bg-color-overlay);
+    box-shadow: var(--el-box-shadow-light);
+    span { white-space: pre-wrap; overflow-wrap: anywhere; }
+    small { color: var(--el-text-color-secondary); }
+  }
 
   .canvasPanel {
     position: absolute;

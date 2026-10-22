@@ -1,4 +1,5 @@
 """通用 GPT 文本调用（用 script 环节的配置，可插拔）"""
+import asyncio
 import httpx
 from sqlalchemy.orm import Session
 from services.settings_service import get_stage_config
@@ -52,7 +53,8 @@ async def chat_completion(
             first_limit = payload[token_field]
             retry_limit = min(max(first_limit * 2, first_limit + 4096), 32768)
             for attempt in range(2):
-                resp = await client.post(f"{base_url}/chat/completions", headers=headers, json=payload)
+                async with asyncio.timeout(180):
+                    resp = await client.post(f"{base_url}/chat/completions", headers=headers, json=payload)
                 if resp.status_code == 401:
                     raise GPTError("API Key 无效（401）", 401)
                 if resp.status_code == 402:
@@ -95,7 +97,7 @@ async def chat_completion(
         raise
     except httpx.ConnectError:
         raise GPTError(f"无法连接到 {base_url}（检查 base_url 或网络）", 502)
-    except httpx.TimeoutException:
+    except (httpx.TimeoutException, TimeoutError):
         raise GPTError("请求超时（180s），剧本可能过长或网络问题", 504)
     except Exception as e:
         raise GPTError(f"GPT 调用异常: {type(e).__name__}: {e}", 502)
