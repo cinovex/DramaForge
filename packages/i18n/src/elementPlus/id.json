@@ -1,0 +1,205 @@
+{
+  "name": "id",
+  "el": {
+    "breadcrumb": {
+      "label": "Jejak navigasi"
+    },
+    "colorpicker": {
+      "confirm": "Pilih",
+      "clear": "Kosongkan",
+      "defaultLabel": "Pemilih warna",
+      "description": "Warna saat ini adalah {color}. Tekan Enter untuk memilih warna baru.",
+      "alphaLabel": "Pilih nilai opasitas",
+      "alphaDescription": "Opasitas {alpha}, warna saat ini adalah {color}",
+      "hueLabel": "Pilih rona warna",
+      "hueDescription": "Rona {hue}, warna saat ini adalah {color}",
+      "svLabel": "Pilih nilai saturasi dan kecerahan",
+      "svDescription": "Saturasi {saturation}, kecerahan {brightness}, warna saat ini adalah {color}",
+      "predefineDescription": "Pilih {value} sebagai warna"
+    },
+    "datepicker": {
+      "now": "Sekarang",
+      "today": "Hari ini",
+      "cancel": "Batal",
+      "clear": "Kosongkan",
+      "confirm": "Ya",
+      "dateTablePrompt": "Gunakan tombol panah dan Enter untuk memilih tanggal dalam bulan",
+      "monthTablePrompt": "Gunakan tombol panah dan Enter untuk memilih bulan",
+      "quarterTablePrompt": "Gunakan tombol panah dan Enter untuk memilih kuartal",
+      "yearTablePrompt": "Gunakan tombol panah dan Enter untuk memilih tahun",
+      "selectedDate": "Tanggal yang dipilih",
+      "selectDate": "Pilih tanggal",
+      "selectTime": "Pilih waktu",
+      "startDate": "Tanggal Mulai",
+      "startTime": "Waktu Mulai",
+      "endDate": "Tanggal Selesai",
+      "endTime": "Waktu Selesai",
+      "prevYear": "Tahun Sebelumnya",
+      "nextYear": "Tahun Selanjutnya",
+      "prevMonth": "Bulan Sebelumnya",
+      "nextMonth": "Bulan Selanjutnya",
+      "year": "Tahun",
+      "month1": "Januari",
+      "month2": "Februari",
+      "month3": "Maret",
+      "month4": "April",
+      "month5": "Mei",
+      "month6": "Juni",
+      "month7": "Juli",
+      "month8": "Agustus",
+      "month9": "September",
+      "month10": "Oktober",
+      "month11": "November",
+      "month12": "Desember",
+      "weeks": {
+        "sun": "Min",
+        "mon": "Sen",
+        "tue": "Sel",
+        "wed": "Rab",
+        "thu": "Kam",
+        "fri": "Jum",
+        "sat": "Sab"
+      },
+      "weeksFull": {
+        "sun": "Minggu",
+        "mon": "Senin",
+        "tue": "Selasa",
+        "wed": "Rabu",
+        "thu": "Kamis",
+        "fri": "Jumat",
+        "sat": "Sabtu"
+      },
+      "months": {
+        "jan": "Jan",
+        "feb": "Feb",
+        "mar": "Mar",
+        "apr": "Apr",
+        "may": "Mei",
+        "jun": "Jun",
+        "jul": "Jul",
+        "aug": "Agu",
+        "sep": "Sep",
+        "oct": "Okt",
+        "nov": "Nov",
+        "dec": "Des"
+      }
+    },
+    "input": {
+      "characters": "{count} / {max} karakter"
+    },
+    "inputNumber": {
+      "decrease": "Kurangi nilai",
+      "increase": "Tambah nilai"
+    },
+    "select": {
+      "loading": "Memuat",
+      "noMatch": "Tidak ada data yg cocok",
+      "noData": "Tidak ada data",
+      "placeholder": "Pilih"
+    },
+    "mention": {
+      "loading": "Memuat"
+    },
+    "dropdown": {
+      "toggleDropdown": "Buka atau tutup menu tarik-turun"
+    },
+    "cascader": {
+      "noMatch": "Tidak ada data yg cocok",
+      "loading": "Memuat",
+      "placeholder": "Pilih",
+      "noData": "Tidak ada data"
+    },
+    "pagination": {
+      "goto": "Pergi ke",
+      "pagesize": "/halaman",
+      "total": "Total {total}",
+      "pageClassifier": "",
+      "page": "Halaman",
+      "prev": "Ke halaman sebelumnya",
+      "next": "Ke halaman berikutnya",
+      "currentPage": "Halaman {pager}",
+      "prevPages": "Mundur {pager} halaman",
+      "nextPages": "Maju {pager} halaman",
+      "deprecationWarning": "Penggunaan yang tidak akan digunakan lagi terdeteksi, silakan lihat dokumentasi el-pagination untuk lebih jelasnya"
+    },
+    "dialog": {
+      "close": "Tutup dialog ini"
+    },
+    "drawer": {
+      "close": "Tutup dialog ini"
+    },
+    "messagebox": {
+      "title": "Pesan",
+      "confirm": "Ya",
+      "cancel": "Batal",
+      "error": "Masukan tidak valid",
+      "close": "Tutup dialog ini"
+    },
+    "upload": {
+      "deleteTip": "Tekan tombol Delete untuk menghapus",
+      "delete": "Hapus",
+      "preview": "Pratinjau",
+      "continue": "Lanjutkan"
+    },
+    "slider": {
+      "defaultLabel": "Penggeser antara {min} dan {max}",
+      "defaultRangeStartLabel": "Pilih nilai awal",
+      "defaultRangeEndLabel": "Pilih nilai akhir"
+    },
+    "table": {
+      "emptyText": "Tidak ada data",
+      "confirmFilter": "Konfirmasi",
+      "resetFilter": "Atur ulang",
+      "clearFilter": "Semua",
+      "sumText": "Jumlah",
+      "selectAllLabel": "Pilih semua baris",
+      "selectRowLabel": "Pilih baris ini",
+      "expandRowLabel": "Perluas baris ini",
+      "collapseRowLabel": "Ciutkan baris ini",
+      "sortLabel": "Urutkan berdasarkan {column}",
+      "filterLabel": "Filter berdasarkan {column}"
+    },
+    "tag": {
+      "close": "Tutup tag ini"
+    },
+    "tour": {
+      "next": "Berikutnya",
+      "previous": "Sebelumnya",
+      "finish": "Selesai",
+      "close": "Tutup dialog ini"
+    },
+    "tree": {
+      "emptyText": "Tidak ada data"
+    },
+    "transfer": {
+      "noMatch": "Tidak ada data yg cocok",
+      "noData": "Tidak ada data",
+      "titles": [
+        "Daftar 1",
+        "Daftar 2"
+      ],
+      "filterPlaceholder": "Masukan kata kunci",
+      "noCheckedFormat": "{total} item",
+      "hasCheckedFormat": "{checked}/{total} terpilih"
+    },
+    "image": {
+      "error": "GAGAL"
+    },
+    "pageHeader": {
+      "title": "Kembali"
+    },
+    "popconfirm": {
+      "confirmButtonText": "Ya",
+      "cancelButtonText": "Tidak"
+    },
+    "carousel": {
+      "leftArrow": "Panah kiri karusel",
+      "rightArrow": "Panah kanan karusel",
+      "indicator": "Beralih ke item nomor {index} pada karusel"
+    },
+    "inputOTP": {
+      "groupLabel": "Masukkan kode verifikasi sekali pakai",
+      "defaultLabel": "Masukkan karakter ke-{index} dari kode verifikasi sekali pakai"
+    }
+  }
+}

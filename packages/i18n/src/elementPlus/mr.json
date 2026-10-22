@@ -1,0 +1,205 @@
+{
+  "name": "mr",
+  "el": {
+    "breadcrumb": {
+      "label": "दिशादर्शक मार्ग"
+    },
+    "colorpicker": {
+      "confirm": "ठीक आहे",
+      "clear": "साफ करा",
+      "defaultLabel": "रंग निवडक",
+      "description": "सध्याचा रंग {color} आहे. नवीन रंग निवडण्यासाठी Enter दाबा.",
+      "alphaLabel": "अपारदर्शकतेचे मूल्य निवडा",
+      "alphaDescription": "अपारदर्शकता {alpha}, सध्याचा रंग {color} आहे",
+      "hueLabel": "रंगछटेचे मूल्य निवडा",
+      "hueDescription": "रंगछटा {hue}, सध्याचा रंग {color} आहे",
+      "svLabel": "रंगसंपृक्तता आणि उजळपणाची मूल्ये निवडा",
+      "svDescription": "रंगसंपृक्तता {saturation}, उजळपणा {brightness}, सध्याचा रंग {color} आहे",
+      "predefineDescription": "रंग म्हणून {value} निवडा"
+    },
+    "datepicker": {
+      "now": "आत्ता",
+      "today": "आज",
+      "cancel": "रद्द करा",
+      "clear": "साफ करा",
+      "confirm": "ठीक आहे",
+      "dateTablePrompt": "महिन्यातील दिवस निवडण्यासाठी बाणांच्या कळा आणि Enter वापरा",
+      "monthTablePrompt": "महिना निवडण्यासाठी बाणांच्या कळा आणि Enter वापरा",
+      "quarterTablePrompt": "तिमाही निवडण्यासाठी बाणांच्या कळा आणि Enter वापरा",
+      "yearTablePrompt": "वर्ष निवडण्यासाठी बाणांच्या कळा आणि Enter वापरा",
+      "selectedDate": "निवडलेली तारीख",
+      "selectDate": "तारीख निवडा",
+      "selectTime": "वेळ निवडा",
+      "startDate": "सुरुवातीची तारीख",
+      "startTime": "सुरुवातीची वेळ",
+      "endDate": "शेवटची तारीख",
+      "endTime": "शेवटची वेळ",
+      "prevYear": "मागील वर्ष",
+      "nextYear": "पुढील वर्ष",
+      "prevMonth": "मागील महिना",
+      "nextMonth": "पुढील महिना",
+      "year": "",
+      "month1": "जानेवारी",
+      "month2": "फेब्रुवारी",
+      "month3": "मार्च",
+      "month4": "एप्रिल",
+      "month5": "मे",
+      "month6": "जून",
+      "month7": "जुलै",
+      "month8": "ऑगस्ट",
+      "month9": "सप्टेंबर",
+      "month10": "ऑक्टोबर",
+      "month11": "नोव्हेंबर",
+      "month12": "डिसेंबर",
+      "weeks": {
+        "sun": "रवि",
+        "mon": "सोम",
+        "tue": "मंगळ",
+        "wed": "बुध",
+        "thu": "गुरु",
+        "fri": "शुक्र",
+        "sat": "शनि"
+      },
+      "weeksFull": {
+        "sun": "रविवार",
+        "mon": "सोमवार",
+        "tue": "मंगळवार",
+        "wed": "बुधवार",
+        "thu": "गुरुवार",
+        "fri": "शुक्रवार",
+        "sat": "शनिवार"
+      },
+      "months": {
+        "jan": "जाने.",
+        "feb": "फेब्रु.",
+        "mar": "मार्च",
+        "apr": "एप्रिल",
+        "may": "मे",
+        "jun": "जून",
+        "jul": "जुलै",
+        "aug": "ऑग.",
+        "sep": "सप्टें.",
+        "oct": "ऑक्टो.",
+        "nov": "नोव्हें.",
+        "dec": "डिसें."
+      }
+    },
+    "input": {
+      "characters": "{count} / {max} अक्षरे"
+    },
+    "inputNumber": {
+      "decrease": "संख्या कमी करा",
+      "increase": "संख्या वाढवा"
+    },
+    "select": {
+      "loading": "लोड होत आहे",
+      "noMatch": "जुळणारा डेटा नाही",
+      "noData": "डेटा नाही",
+      "placeholder": "निवडा"
+    },
+    "mention": {
+      "loading": "लोड होत आहे"
+    },
+    "dropdown": {
+      "toggleDropdown": "ड्रॉपडाउन उघडा किंवा बंद करा"
+    },
+    "cascader": {
+      "noMatch": "जुळणारा डेटा नाही",
+      "loading": "लोड होत आहे",
+      "placeholder": "निवडा",
+      "noData": "डेटा नाही"
+    },
+    "pagination": {
+      "goto": "येथे जा",
+      "pagesize": "/पान",
+      "total": "एकूण {total}",
+      "pageClassifier": "",
+      "page": "पान",
+      "prev": "मागील पानावर जा",
+      "next": "पुढील पानावर जा",
+      "currentPage": "पान {pager}",
+      "prevPages": "मागील {pager} पाने",
+      "nextPages": "पुढील {pager} पाने",
+      "deprecationWarning": "यापुढे शिफारस न केलेल्या जुन्या वापरपद्धती आढळल्या. अधिक माहितीसाठी el-pagination चे दस्तऐवज पहा"
+    },
+    "dialog": {
+      "close": "हा संवाद बंद करा"
+    },
+    "drawer": {
+      "close": "हा संवाद बंद करा"
+    },
+    "messagebox": {
+      "title": "संदेश",
+      "confirm": "ठीक आहे",
+      "cancel": "रद्द करा",
+      "error": "अवैध इनपुट",
+      "close": "हा संवाद बंद करा"
+    },
+    "upload": {
+      "deleteTip": "काढून टाकण्यासाठी Delete दाबा",
+      "delete": "हटवा",
+      "preview": "पूर्वावलोकन",
+      "continue": "पुढे सुरू ठेवा"
+    },
+    "slider": {
+      "defaultLabel": "{min} आणि {max} यांदरम्यानचा स्लायडर",
+      "defaultRangeStartLabel": "सुरुवातीचे मूल्य निवडा",
+      "defaultRangeEndLabel": "शेवटचे मूल्य निवडा"
+    },
+    "table": {
+      "emptyText": "डेटा नाही",
+      "confirmFilter": "पुष्टी करा",
+      "resetFilter": "रीसेट करा",
+      "clearFilter": "सर्व",
+      "sumText": "बेरीज",
+      "selectAllLabel": "सर्व ओळी निवडा",
+      "selectRowLabel": "ही ओळ निवडा",
+      "expandRowLabel": "ही ओळ विस्तृत करा",
+      "collapseRowLabel": "ही ओळ संकुचित करा",
+      "sortLabel": "{column} नुसार क्रम लावा",
+      "filterLabel": "{column} नुसार फिल्टर करा"
+    },
+    "tag": {
+      "close": "हा टॅग बंद करा"
+    },
+    "tour": {
+      "next": "पुढे",
+      "previous": "मागे",
+      "finish": "पूर्ण करा",
+      "close": "हा संवाद बंद करा"
+    },
+    "tree": {
+      "emptyText": "डेटा नाही"
+    },
+    "transfer": {
+      "noMatch": "जुळणारा डेटा नाही",
+      "noData": "डेटा नाही",
+      "titles": [
+        "यादी 1",
+        "यादी 2"
+      ],
+      "filterPlaceholder": "शोधशब्द टाका",
+      "noCheckedFormat": "{total} बाबी",
+      "hasCheckedFormat": "{checked}/{total} निवडल्या आहेत"
+    },
+    "image": {
+      "error": "अयशस्वी"
+    },
+    "pageHeader": {
+      "title": "मागे"
+    },
+    "popconfirm": {
+      "confirmButtonText": "होय",
+      "cancelButtonText": "नाही"
+    },
+    "carousel": {
+      "leftArrow": "कॅरोसेलचा डावा बाण",
+      "rightArrow": "कॅरोसेलचा उजवा बाण",
+      "indicator": "कॅरोसेलमधील {index} क्रमांकावर जा"
+    },
+    "inputOTP": {
+      "groupLabel": "एकदा वापरण्याचा पडताळणी कोड",
+      "defaultLabel": "पडताळणी कोडमधील {index}वे अक्षर टाका"
+    }
+  }
+}

@@ -1,0 +1,205 @@
+{
+  "name": "ur",
+  "el": {
+    "breadcrumb": {
+      "label": "راستۂ نیویگیشن"
+    },
+    "colorpicker": {
+      "confirm": "تصدیق کریں",
+      "clear": "صاف کریں",
+      "defaultLabel": "رنگ منتخب کرنے کا آلہ",
+      "description": "موجودہ رنگ {color} ہے۔ نیا رنگ منتخب کرنے کے لیے Enter دبائیں۔",
+      "alphaLabel": "عدم شفافیت کی سطح منتخب کریں",
+      "alphaDescription": "عدم شفافیت {alpha}، موجودہ رنگ {color} ہے",
+      "hueLabel": "رنگت منتخب کریں",
+      "hueDescription": "رنگت {hue}، موجودہ رنگ {color} ہے",
+      "svLabel": "رنگ کی شدت اور چمک منتخب کریں",
+      "svDescription": "رنگ کی شدت {saturation}، چمک {brightness}، موجودہ رنگ {color} ہے",
+      "predefineDescription": "{value} کو رنگ کے طور پر منتخب کریں"
+    },
+    "datepicker": {
+      "now": "ابھی",
+      "today": "آج",
+      "cancel": "منسوخ کریں",
+      "clear": "صاف کریں",
+      "confirm": "تصدیق کریں",
+      "dateTablePrompt": "مہینے کا دن منتخب کرنے کے لیے تیر والے بٹن اور Enter استعمال کریں",
+      "monthTablePrompt": "مہینہ منتخب کرنے کے لیے تیر والے بٹن اور Enter استعمال کریں",
+      "quarterTablePrompt": "سہ ماہی منتخب کرنے کے لیے تیر والے بٹن اور Enter استعمال کریں",
+      "yearTablePrompt": "سال منتخب کرنے کے لیے تیر والے بٹن اور Enter استعمال کریں",
+      "selectedDate": "منتخب تاریخ",
+      "selectDate": "تاریخ منتخب کریں",
+      "selectTime": "وقت منتخب کریں",
+      "startDate": "آغاز کی تاریخ",
+      "startTime": "آغاز کا وقت",
+      "endDate": "اختتام کی تاریخ",
+      "endTime": "اختتام کا وقت",
+      "prevYear": "پچھلا سال",
+      "nextYear": "اگلا سال",
+      "prevMonth": "پچھلا مہینہ",
+      "nextMonth": "اگلا مہینہ",
+      "year": "",
+      "month1": "جنوری",
+      "month2": "فروری",
+      "month3": "مارچ",
+      "month4": "اپریل",
+      "month5": "مئی",
+      "month6": "جون",
+      "month7": "جولائی",
+      "month8": "اگست",
+      "month9": "ستمبر",
+      "month10": "اکتوبر",
+      "month11": "نومبر",
+      "month12": "دسمبر",
+      "weeks": {
+        "sun": "اتوار",
+        "mon": "پیر",
+        "tue": "منگل",
+        "wed": "بدھ",
+        "thu": "جمعرات",
+        "fri": "جمعہ",
+        "sat": "ہفتہ"
+      },
+      "weeksFull": {
+        "sun": "اتوار",
+        "mon": "پیر",
+        "tue": "منگل",
+        "wed": "بدھ",
+        "thu": "جمعرات",
+        "fri": "جمعہ",
+        "sat": "ہفتہ"
+      },
+      "months": {
+        "jan": "جنوری",
+        "feb": "فروری",
+        "mar": "مارچ",
+        "apr": "اپریل",
+        "may": "مئی",
+        "jun": "جون",
+        "jul": "جولائی",
+        "aug": "اگست",
+        "sep": "ستمبر",
+        "oct": "اکتوبر",
+        "nov": "نومبر",
+        "dec": "دسمبر"
+      }
+    },
+    "input": {
+      "characters": "{count} / {max} حروف"
+    },
+    "inputNumber": {
+      "decrease": "عدد کم کریں",
+      "increase": "عدد بڑھائیں"
+    },
+    "select": {
+      "loading": "لوڈ ہو رہا ہے",
+      "noMatch": "کوئی مماثل ڈیٹا نہیں",
+      "noData": "کوئی ڈیٹا نہیں",
+      "placeholder": "منتخب کریں"
+    },
+    "mention": {
+      "loading": "لوڈ ہو رہا ہے"
+    },
+    "dropdown": {
+      "toggleDropdown": "ڈراپ ڈاؤن مینو کھولیں یا بند کریں"
+    },
+    "cascader": {
+      "noMatch": "کوئی مماثل ڈیٹا نہیں",
+      "loading": "لوڈ ہو رہا ہے",
+      "placeholder": "منتخب کریں",
+      "noData": "کوئی ڈیٹا نہیں"
+    },
+    "pagination": {
+      "goto": "جائیں",
+      "pagesize": "فی صفحہ",
+      "total": "کل: {total}",
+      "pageClassifier": "",
+      "page": "صفحہ",
+      "prev": "پچھلے صفحے پر جائیں",
+      "next": "اگلے صفحے پر جائیں",
+      "currentPage": "صفحہ {pager}",
+      "prevPages": "پیچھے جائیں، صفحات کی تعداد: {pager}",
+      "nextPages": "آگے جائیں، صفحات کی تعداد: {pager}",
+      "deprecationWarning": "متروک استعمال کی نشاندہی ہوئی ہے۔ مزید تفصیلات کے لیے el-pagination کی دستاویزات دیکھیں۔"
+    },
+    "dialog": {
+      "close": "یہ مکالماتی خانہ بند کریں"
+    },
+    "drawer": {
+      "close": "یہ مکالماتی خانہ بند کریں"
+    },
+    "messagebox": {
+      "title": "پیغام",
+      "confirm": "تصدیق کریں",
+      "cancel": "منسوخ کریں",
+      "error": "درج کردہ قدر درست نہیں",
+      "close": "یہ مکالماتی خانہ بند کریں"
+    },
+    "upload": {
+      "deleteTip": "ہٹانے کے لیے Delete دبائیں",
+      "delete": "حذف کریں",
+      "preview": "پیش نظارہ",
+      "continue": "جاری رکھیں"
+    },
+    "slider": {
+      "defaultLabel": "{min} سے {max} تک کی قدر کے لیے سلائیڈر",
+      "defaultRangeStartLabel": "ابتدائی قدر منتخب کریں",
+      "defaultRangeEndLabel": "آخری قدر منتخب کریں"
+    },
+    "table": {
+      "emptyText": "کوئی ڈیٹا نہیں",
+      "confirmFilter": "تصدیق کریں",
+      "resetFilter": "ابتدائی حالت میں لائیں",
+      "clearFilter": "سب",
+      "sumText": "مجموعہ",
+      "selectAllLabel": "تمام قطاریں منتخب کریں",
+      "selectRowLabel": "یہ قطار منتخب کریں",
+      "expandRowLabel": "یہ قطار پھیلائیں",
+      "collapseRowLabel": "یہ قطار سمیٹیں",
+      "sortLabel": "{column} کے مطابق ترتیب دیں",
+      "filterLabel": "{column} کے مطابق فلٹر کریں"
+    },
+    "tag": {
+      "close": "یہ ٹیگ بند کریں"
+    },
+    "tour": {
+      "next": "اگلا",
+      "previous": "پچھلا",
+      "finish": "مکمل کریں",
+      "close": "یہ مکالماتی خانہ بند کریں"
+    },
+    "tree": {
+      "emptyText": "کوئی ڈیٹا نہیں"
+    },
+    "transfer": {
+      "noMatch": "کوئی مماثل ڈیٹا نہیں",
+      "noData": "کوئی ڈیٹا نہیں",
+      "titles": [
+        "فہرست 1",
+        "فہرست 2"
+      ],
+      "filterPlaceholder": "کلیدی لفظ درج کریں",
+      "noCheckedFormat": "اندراجات: {total}",
+      "hasCheckedFormat": "منتخب: {checked}/{total}"
+    },
+    "image": {
+      "error": "ناکام"
+    },
+    "pageHeader": {
+      "title": "واپس"
+    },
+    "popconfirm": {
+      "confirmButtonText": "ہاں",
+      "cancelButtonText": "نہیں"
+    },
+    "carousel": {
+      "leftArrow": "کیروسل کا بایاں تیر",
+      "rightArrow": "کیروسل کا دایاں تیر",
+      "indicator": "کیروسل میں نمبر {index} پر جائیں"
+    },
+    "inputOTP": {
+      "groupLabel": "یک وقتی تصدیقی کوڈ درج کریں",
+      "defaultLabel": "یک وقتی تصدیقی کوڈ کا حرف نمبر {index} درج کریں"
+    }
+  }
+}

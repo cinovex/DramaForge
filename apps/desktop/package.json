@@ -1,0 +1,22 @@
+{
+  "name": "@toonflow/desktop",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun scripts/build.ts dev",
+    "build": "bun scripts/build.ts build",
+    "package": "bun scripts/build.ts package",
+    "typecheck": "bun scripts/build.ts typecheck"
+  },
+  "dependencies": {
+    "@toonflow/file": "workspace:*",
+    "@toonflow/server": "workspace:*",
+    "@toonflow/startup": "workspace:*",
+    "@toonflow/i18n": "workspace:*",
+    "express": "^5.2.1"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "electrobun": "2.0.1"
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "skills": {
+    "pippit-skill": {
+      "source": "Pippit-dev/pippit-skills",
+      "sourceType": "github",
+      "skillPath": "skills/pippit-skill/SKILL.md",
+      "computedHash": "a3275cbd77e64d326433f213a9b16764d10ed0f91cd6bdff6df3cc10448cbdda"
+    },
+    "xyq-marketing-skill": {
+      "source": "Pippit-dev/cli",
+      "sourceType": "github",
+      "skillPath": "skills/xyq-marketing-skill/SKILL.md",
+      "computedHash": "e2cdf887d0897811bcf41ce34ac60bad93b0dec2cc3f9af5aeddfe0bdabfa25a"
+    },
+    "xyq-short-drama-skill": {
+      "source": "Pippit-dev/cli",
+      "sourceType": "github",
+      "skillPath": "skills/short-drama/SKILL.md",
+      "computedHash": "f9ff935649fe487f74dc83c34d956ab9033198437a1ac1e24c4c8eef93d76d89"
+    },
+    "xyq-skill": {
+      "source": "Pippit-dev/cli",
+      "sourceType": "github",
+      "skillPath": "skills/xyq-nest-skill/SKILL.md",
+      "computedHash": "9c523601c0829b1a1a11bf6320f283c6467d8bafbb5f023a84c7c22103202e19"
+    }
+  }
+}

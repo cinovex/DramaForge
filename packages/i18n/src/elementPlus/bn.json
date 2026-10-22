@@ -1,0 +1,205 @@
+{
+  "name": "bn",
+  "el": {
+    "breadcrumb": {
+      "label": "নেভিগেশন পথ"
+    },
+    "colorpicker": {
+      "confirm": "ঠিক আছে",
+      "clear": "সাফ করুন",
+      "defaultLabel": "রং নির্বাচন",
+      "description": "বর্তমান রং {color}। নতুন রং নির্বাচন করতে Enter চাপুন।",
+      "alphaLabel": "অস্বচ্ছতার মান নির্বাচন করুন",
+      "alphaDescription": "অস্বচ্ছতা {alpha}, বর্তমান রং {color}",
+      "hueLabel": "বর্ণের মান নির্বাচন করুন",
+      "hueDescription": "বর্ণ {hue}, বর্তমান রং {color}",
+      "svLabel": "রঙের সম্পৃক্ততা ও উজ্জ্বলতার মান নির্বাচন করুন",
+      "svDescription": "রঙের সম্পৃক্ততা {saturation}, উজ্জ্বলতা {brightness}, বর্তমান রং {color}",
+      "predefineDescription": "রং হিসেবে {value} নির্বাচন করুন"
+    },
+    "datepicker": {
+      "now": "এখন",
+      "today": "আজ",
+      "cancel": "বাতিল",
+      "clear": "সাফ করুন",
+      "confirm": "ঠিক আছে",
+      "dateTablePrompt": "মাসের দিন নির্বাচন করতে তীরচিহ্নের কী ও Enter ব্যবহার করুন",
+      "monthTablePrompt": "মাস নির্বাচন করতে তীরচিহ্নের কী ও Enter ব্যবহার করুন",
+      "quarterTablePrompt": "ত্রৈমাসিক নির্বাচন করতে তীরচিহ্নের কী ও Enter ব্যবহার করুন",
+      "yearTablePrompt": "বছর নির্বাচন করতে তীরচিহ্নের কী ও Enter ব্যবহার করুন",
+      "selectedDate": "নির্বাচিত তারিখ",
+      "selectDate": "তারিখ নির্বাচন করুন",
+      "selectTime": "সময় নির্বাচন করুন",
+      "startDate": "যে তারিখ থেকে",
+      "startTime": "যে সময় থেকে",
+      "endDate": "যে তারিখ পর্যন্ত",
+      "endTime": "যে সময় পর্যন্ত",
+      "prevYear": "পূর্ববর্তী বছর",
+      "nextYear": "পরবর্তী বছর",
+      "prevMonth": "পূর্ববর্তী মাস",
+      "nextMonth": "পরবর্তী মাস",
+      "year": "সাল",
+      "month1": "জানুয়ারি",
+      "month2": "ফেব্রুয়ারি",
+      "month3": "মার্চ",
+      "month4": "এপ্রিল",
+      "month5": "মে",
+      "month6": "জুন",
+      "month7": "জুলাই",
+      "month8": "আগস্ট",
+      "month9": "সেপ্টেম্বর",
+      "month10": "অক্টোবর",
+      "month11": "নভেম্বর",
+      "month12": "ডিসেম্বর",
+      "weeks": {
+        "sun": "রবি",
+        "mon": "সোম",
+        "tue": "মঙ্গল",
+        "wed": "বুধ",
+        "thu": "বৃহঃ",
+        "fri": "শুক্র",
+        "sat": "শনি"
+      },
+      "weeksFull": {
+        "sun": "রবিবার",
+        "mon": "সোমবার",
+        "tue": "মঙ্গলবার",
+        "wed": "বুধবার",
+        "thu": "বৃহস্পতিবার",
+        "fri": "শুক্রবার",
+        "sat": "শনিবার"
+      },
+      "months": {
+        "jan": "জানু",
+        "feb": "ফেব্রু",
+        "mar": "মার্চ",
+        "apr": "এপ্রি",
+        "may": "মে",
+        "jun": "জুন",
+        "jul": "জুলা",
+        "aug": "আগ",
+        "sep": "সেপ্টে",
+        "oct": "অক্টো",
+        "nov": "নভে",
+        "dec": "ডিসে"
+      }
+    },
+    "input": {
+      "characters": "{count} / {max} অক্ষর"
+    },
+    "inputNumber": {
+      "decrease": "সংখ্যা কমান",
+      "increase": "সংখ্যা বাড়ান"
+    },
+    "select": {
+      "loading": "লোড হচ্ছে",
+      "noMatch": "মিলে এমন কোনো তথ্য নেই",
+      "noData": "কোনো তথ্য নেই",
+      "placeholder": "নির্বাচন করুন"
+    },
+    "mention": {
+      "loading": "লোড হচ্ছে"
+    },
+    "dropdown": {
+      "toggleDropdown": "ড্রপডাউন খুলুন বা বন্ধ করুন"
+    },
+    "cascader": {
+      "noMatch": "মিলে এমন কোনো তথ্য নেই",
+      "loading": "লোড হচ্ছে",
+      "placeholder": "নির্বাচন করুন",
+      "noData": "কোনো তথ্য নেই"
+    },
+    "pagination": {
+      "goto": "যান",
+      "pagesize": "/পেজ",
+      "total": "মোট {total}",
+      "pageClassifier": "",
+      "page": "পৃষ্ঠা",
+      "prev": "আগের পৃষ্ঠায় যান",
+      "next": "পরের পৃষ্ঠায় যান",
+      "currentPage": "পৃষ্ঠা {pager}",
+      "prevPages": "আগের {pager} পৃষ্ঠা",
+      "nextPages": "পরের {pager} পৃষ্ঠা",
+      "deprecationWarning": "পুরোনো ও আর সুপারিশকৃত নয় এমন ব্যবহার শনাক্ত হয়েছে। বিস্তারিত জানতে el-pagination-এর নথি দেখুন"
+    },
+    "dialog": {
+      "close": "এই সংলাপ বন্ধ করুন"
+    },
+    "drawer": {
+      "close": "এই সংলাপ বন্ধ করুন"
+    },
+    "messagebox": {
+      "title": "বার্তা",
+      "confirm": "ঠিক আছে",
+      "cancel": "বাতিল",
+      "error": "অবৈধ ইনপুট",
+      "close": "এই সংলাপ বন্ধ করুন"
+    },
+    "upload": {
+      "deleteTip": "সরাতে Delete কী চাপুন",
+      "delete": "ডিলিট",
+      "preview": "প্রিভিউ",
+      "continue": "চালিয়ে যান"
+    },
+    "slider": {
+      "defaultLabel": "{min} ও {max}-এর মধ্যবর্তী স্লাইডার",
+      "defaultRangeStartLabel": "শুরুর মান নির্বাচন করুন",
+      "defaultRangeEndLabel": "শেষের মান নির্বাচন করুন"
+    },
+    "table": {
+      "emptyText": "কোনো তথ্য নেই",
+      "confirmFilter": "নিশ্চিত করুন",
+      "resetFilter": "রিসেট",
+      "clearFilter": "সব",
+      "sumText": "যোগফল",
+      "selectAllLabel": "সব সারি নির্বাচন করুন",
+      "selectRowLabel": "এই সারি নির্বাচন করুন",
+      "expandRowLabel": "এই সারি প্রসারিত করুন",
+      "collapseRowLabel": "এই সারি সংকুচিত করুন",
+      "sortLabel": "{column} অনুযায়ী সাজান",
+      "filterLabel": "{column} অনুযায়ী ফিল্টার করুন"
+    },
+    "tag": {
+      "close": "এই ট্যাগ বন্ধ করুন"
+    },
+    "tour": {
+      "next": "পরবর্তী",
+      "previous": "পূর্ববর্তী",
+      "finish": "শেষ করুন",
+      "close": "এই সংলাপ বন্ধ করুন"
+    },
+    "tree": {
+      "emptyText": "কোনো তথ্য নেই"
+    },
+    "transfer": {
+      "noMatch": "মিলে এমন কোনো তথ্য নেই",
+      "noData": "কোনো তথ্য নেই",
+      "titles": [
+        "লিস্ট ১",
+        "লিস্ট ২"
+      ],
+      "filterPlaceholder": "কীওয়ার্ড লিখুন",
+      "noCheckedFormat": "{total} আইটেম",
+      "hasCheckedFormat": "{checked}/{total} টিক করা হয়েছে"
+    },
+    "image": {
+      "error": "ব্যর্থ হয়েছে"
+    },
+    "pageHeader": {
+      "title": "পিছনে"
+    },
+    "popconfirm": {
+      "confirmButtonText": "হ্যাঁ",
+      "cancelButtonText": "না"
+    },
+    "carousel": {
+      "leftArrow": "ক্যারোসেলের বাঁ দিকের তীর",
+      "rightArrow": "ক্যারোসেলের ডান দিকের তীর",
+      "indicator": "ক্যারোসেলের {index} সূচকে যান"
+    },
+    "inputOTP": {
+      "groupLabel": "একবার ব্যবহারযোগ্য যাচাইকরণ কোড",
+      "defaultLabel": "যাচাইকরণ কোডের {index} নম্বর অক্ষর লিখুন"
+    }
+  }
+}

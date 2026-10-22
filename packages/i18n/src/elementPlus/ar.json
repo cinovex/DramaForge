@@ -1,0 +1,205 @@
+{
+  "name": "ar",
+  "el": {
+    "breadcrumb": {
+      "label": "مسار التنقل"
+    },
+    "colorpicker": {
+      "confirm": "موافق",
+      "clear": "مسح",
+      "defaultLabel": "منتقي الألوان",
+      "description": "اللون الحالي هو {color}. اضغط Enter لاختيار لون جديد.",
+      "alphaLabel": "اختر مستوى العتامة",
+      "alphaDescription": "العتامة {alpha}، اللون الحالي هو {color}",
+      "hueLabel": "اختر درجة اللون",
+      "hueDescription": "درجة اللون {hue}، اللون الحالي هو {color}",
+      "svLabel": "اختر التشبع والسطوع",
+      "svDescription": "التشبع {saturation}، السطوع {brightness}، اللون الحالي هو {color}",
+      "predefineDescription": "اختر {value} كلون"
+    },
+    "datepicker": {
+      "now": "الآن",
+      "today": "اليوم",
+      "cancel": "إلغاء",
+      "clear": "إزالة",
+      "confirm": "موافق",
+      "dateTablePrompt": "استخدم مفاتيح الاسهم و اضغط انتر لاختيار اليوم المراد من الشهر",
+      "monthTablePrompt": "استخدم مفاتيح الاسهم واضغط انتر لاختيار الشهر",
+      "quarterTablePrompt": "استخدم مفاتيح الاسهم واضغط انتر لاختيار الربع",
+      "yearTablePrompt": "استخدم مفاتيح الاسهم واضغط انتر لاختيار السنة",
+      "selectedDate": "التاريخ المحدد",
+      "selectDate": "إختر التاريخ",
+      "selectTime": "إختر الوقت",
+      "startDate": "تاريخ البدء",
+      "startTime": "وقت البدء",
+      "endDate": "تاريخ الإنتهاء",
+      "endTime": "وقت الإنتهاء",
+      "prevYear": "السنة السابقة",
+      "nextYear": "السنة التالية",
+      "prevMonth": "الشهر السابق",
+      "nextMonth": "الشهر التالي",
+      "year": "سنة",
+      "month1": "كانون الثاني",
+      "month2": "شباط",
+      "month3": "آذار",
+      "month4": "نيسان",
+      "month5": "أيار",
+      "month6": "حزيران",
+      "month7": "تموز",
+      "month8": "آب",
+      "month9": "أيلول",
+      "month10": "تشرين الأول",
+      "month11": "تشرين الثاني",
+      "month12": "كانون الأول",
+      "weeks": {
+        "sun": "الأحد",
+        "mon": "الاثنين",
+        "tue": "الثلاثاء",
+        "wed": "الأربعاء",
+        "thu": "الخميس",
+        "fri": "الجمعة",
+        "sat": "السبت"
+      },
+      "weeksFull": {
+        "sun": "الأحد",
+        "mon": "الاثنين",
+        "tue": "الثلاثاء",
+        "wed": "الأربعاء",
+        "thu": "الخميس",
+        "fri": "الجمعة",
+        "sat": "السبت"
+      },
+      "months": {
+        "jan": "كانون الثاني",
+        "feb": "شباط",
+        "mar": "آذار",
+        "apr": "نيسان",
+        "may": "أيار",
+        "jun": "حزيران",
+        "jul": "تموز",
+        "aug": "آب",
+        "sep": "أيلول",
+        "oct": "تشرين الأول",
+        "nov": "تشرين الثاني",
+        "dec": "كانون الأول"
+      }
+    },
+    "input": {
+      "characters": "{count} / {max} حرف"
+    },
+    "inputNumber": {
+      "decrease": "تقليل القيمة",
+      "increase": "زيادة القيمة"
+    },
+    "select": {
+      "loading": "جار التحميل",
+      "noMatch": "لايوجد بيانات مطابقة",
+      "noData": "لايوجد بيانات",
+      "placeholder": "إختر"
+    },
+    "mention": {
+      "loading": "جار التحميل"
+    },
+    "dropdown": {
+      "toggleDropdown": "تبديل القائمة"
+    },
+    "cascader": {
+      "noMatch": "لايوجد بيانات مطابقة",
+      "loading": "جار التحميل",
+      "placeholder": "إختر",
+      "noData": "لايوجد بيانات"
+    },
+    "pagination": {
+      "goto": "أذهب إلى",
+      "pagesize": "/صفحة",
+      "total": "الكل {total}",
+      "pageClassifier": "",
+      "page": "صفحة",
+      "prev": "الانتقال إلى الصفحة السابقة",
+      "next": "الانتقال إلى الصفحة التالية",
+      "currentPage": "الصفحة {pager}",
+      "prevPages": "الانتقال إلى الخلف بعدد صفحات: {pager}",
+      "nextPages": "الانتقال إلى الأمام بعدد صفحات: {pager}",
+      "deprecationWarning": "تم اكتشاف استخدامات مهملة. راجع وثائق el-pagination لمزيد من التفاصيل."
+    },
+    "dialog": {
+      "close": "إغلاق مربع الحوار هذا"
+    },
+    "drawer": {
+      "close": "إغلاق مربع الحوار هذا"
+    },
+    "messagebox": {
+      "title": "رسالة",
+      "confirm": "موافق",
+      "cancel": "إلغاء",
+      "error": "مدخل غير صحيح",
+      "close": "إغلاق مربع الحوار هذا"
+    },
+    "upload": {
+      "deleteTip": "اضغط مفتاح Delete للإزالة",
+      "delete": "حذف",
+      "preview": "معاينة",
+      "continue": "إستمرار"
+    },
+    "slider": {
+      "defaultLabel": "شريط تمرير بين {min} و{max}",
+      "defaultRangeStartLabel": "اختر قيمة البداية",
+      "defaultRangeEndLabel": "اختر قيمة النهاية"
+    },
+    "table": {
+      "emptyText": "لايوجد بيانات",
+      "confirmFilter": "تأكيد",
+      "resetFilter": "إعادة ضبط",
+      "clearFilter": "الكل",
+      "sumText": "المجموع",
+      "selectAllLabel": "تحديد جميع الصفوف",
+      "selectRowLabel": "تحديد هذا الصف",
+      "expandRowLabel": "توسيع هذا الصف",
+      "collapseRowLabel": "طي هذا الصف",
+      "sortLabel": "الترتيب حسب {column}",
+      "filterLabel": "التصفية حسب {column}"
+    },
+    "tag": {
+      "close": "إغلاق هذا الوسم"
+    },
+    "tour": {
+      "next": "التالي",
+      "previous": "السابق",
+      "finish": "إنهاء",
+      "close": "إغلاق مربع الحوار هذا"
+    },
+    "tree": {
+      "emptyText": "لايوجد بيانات"
+    },
+    "transfer": {
+      "noMatch": "لايوجد بيانات مطابقة",
+      "noData": "لايوجد بيانات",
+      "titles": [
+        "قائمة 1",
+        "قائمة 2"
+      ],
+      "filterPlaceholder": "ادخل كلمة",
+      "noCheckedFormat": "العناصر: {total}",
+      "hasCheckedFormat": "المحدد: {checked}/{total}"
+    },
+    "image": {
+      "error": "فشل"
+    },
+    "pageHeader": {
+      "title": "عودة"
+    },
+    "popconfirm": {
+      "confirmButtonText": "نعم",
+      "cancelButtonText": "لا"
+    },
+    "carousel": {
+      "leftArrow": "السهم الأيسر للعارض الدوار",
+      "rightArrow": "السهم الأيمن للعارض الدوار",
+      "indicator": "الانتقال إلى العنصر رقم {index} في العارض الدوار"
+    },
+    "inputOTP": {
+      "groupLabel": "إدخال رمز التحقق لمرة واحدة",
+      "defaultLabel": "أدخل المحرف رقم {index} من رمز التحقق لمرة واحدة"
+    }
+  }
+}

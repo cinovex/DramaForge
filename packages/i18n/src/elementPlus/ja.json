@@ -1,0 +1,205 @@
+{
+  "name": "ja",
+  "el": {
+    "breadcrumb": {
+      "label": "パンくずリスト"
+    },
+    "colorpicker": {
+      "confirm": "OK",
+      "clear": "クリア",
+      "defaultLabel": "カラーピッカー",
+      "description": "現在の色は {color} です。Enter キーを押すと新しい色を選択できます。",
+      "alphaLabel": "不透明度を選択",
+      "alphaDescription": "不透明度 {alpha}、現在の色は {color}",
+      "hueLabel": "色相を選択",
+      "hueDescription": "色相 {hue}、現在の色は {color}",
+      "svLabel": "彩度と明度を選択",
+      "svDescription": "彩度 {saturation}、明度 {brightness}、現在の色は {color}",
+      "predefineDescription": "{value} を色として選択"
+    },
+    "datepicker": {
+      "now": "現在",
+      "today": "今日",
+      "cancel": "キャンセル",
+      "clear": "クリア",
+      "confirm": "OK",
+      "dateTablePrompt": "方向キーと Enter キーで日付を選択してください",
+      "monthTablePrompt": "方向キーと Enter キーで月を選択してください",
+      "quarterTablePrompt": "方向キーと Enter キーで四半期を選択してください",
+      "yearTablePrompt": "方向キーと Enter キーで年を選択してください",
+      "selectedDate": "選択した日付",
+      "selectDate": "日付を選択",
+      "selectTime": "時間を選択",
+      "startDate": "開始日",
+      "startTime": "開始時間",
+      "endDate": "終了日",
+      "endTime": "終了時間",
+      "prevYear": "前年",
+      "nextYear": "翌年",
+      "prevMonth": "前月",
+      "nextMonth": "翌月",
+      "year": "年",
+      "month1": "1月",
+      "month2": "2月",
+      "month3": "3月",
+      "month4": "4月",
+      "month5": "5月",
+      "month6": "6月",
+      "month7": "7月",
+      "month8": "8月",
+      "month9": "9月",
+      "month10": "10月",
+      "month11": "11月",
+      "month12": "12月",
+      "weeks": {
+        "sun": "日",
+        "mon": "月",
+        "tue": "火",
+        "wed": "水",
+        "thu": "木",
+        "fri": "金",
+        "sat": "土"
+      },
+      "weeksFull": {
+        "sun": "日曜日",
+        "mon": "月曜日",
+        "tue": "火曜日",
+        "wed": "水曜日",
+        "thu": "木曜日",
+        "fri": "金曜日",
+        "sat": "土曜日"
+      },
+      "months": {
+        "jan": "1月",
+        "feb": "2月",
+        "mar": "3月",
+        "apr": "4月",
+        "may": "5月",
+        "jun": "6月",
+        "jul": "7月",
+        "aug": "8月",
+        "sep": "9月",
+        "oct": "10月",
+        "nov": "11月",
+        "dec": "12月"
+      }
+    },
+    "input": {
+      "characters": "{count} / {max} 文字"
+    },
+    "inputNumber": {
+      "decrease": "値を減らす",
+      "increase": "値を増やす"
+    },
+    "select": {
+      "loading": "ロード中",
+      "noMatch": "データなし",
+      "noData": "データなし",
+      "placeholder": "選択してください"
+    },
+    "mention": {
+      "loading": "ロード中"
+    },
+    "dropdown": {
+      "toggleDropdown": "ドロップダウンの開閉を切り替え"
+    },
+    "cascader": {
+      "noMatch": "データなし",
+      "loading": "ロード中",
+      "placeholder": "選択してください",
+      "noData": "データなし"
+    },
+    "pagination": {
+      "goto": "",
+      "pagesize": "件/ページ",
+      "total": "総計 {total} 件",
+      "pageClassifier": "ページ目へ",
+      "page": "ページ",
+      "prev": "前のページへ移動",
+      "next": "次のページへ移動",
+      "currentPage": "{pager} ページ",
+      "prevPages": "{pager} ページ前へ",
+      "nextPages": "{pager} ページ先へ",
+      "deprecationWarning": "非推奨の使用方法が検出されました。詳しくは el-pagination のドキュメントを参照してください"
+    },
+    "dialog": {
+      "close": "このダイアログを閉じる"
+    },
+    "drawer": {
+      "close": "このダイアログを閉じる"
+    },
+    "messagebox": {
+      "title": "メッセージ",
+      "confirm": "OK",
+      "cancel": "キャンセル",
+      "error": "正しくない入力",
+      "close": "このダイアログを閉じる"
+    },
+    "upload": {
+      "deleteTip": "Delキーを押して削除する",
+      "delete": "削除する",
+      "preview": "プレビュー",
+      "continue": "続行する"
+    },
+    "slider": {
+      "defaultLabel": "{min} から {max} の範囲のスライダー",
+      "defaultRangeStartLabel": "開始値を選択",
+      "defaultRangeEndLabel": "終了値を選択"
+    },
+    "table": {
+      "emptyText": "データなし",
+      "confirmFilter": "確認",
+      "resetFilter": "初期化",
+      "clearFilter": "すべて",
+      "sumText": "合計",
+      "selectAllLabel": "すべての行を選択",
+      "selectRowLabel": "この行を選択",
+      "expandRowLabel": "この行を展開",
+      "collapseRowLabel": "この行を折りたたむ",
+      "sortLabel": "{column} で並べ替え",
+      "filterLabel": "{column} で絞り込み"
+    },
+    "tag": {
+      "close": "このタグを閉じる"
+    },
+    "tour": {
+      "next": "次へ",
+      "previous": "前へ",
+      "finish": "ツアー終了",
+      "close": "このダイアログを閉じる"
+    },
+    "tree": {
+      "emptyText": "データなし"
+    },
+    "transfer": {
+      "noMatch": "データなし",
+      "noData": "データなし",
+      "titles": [
+        "リスト 1",
+        "リスト 2"
+      ],
+      "filterPlaceholder": "キーワードを入力",
+      "noCheckedFormat": "総計 {total} 件",
+      "hasCheckedFormat": "{checked}/{total} を選択した"
+    },
+    "image": {
+      "error": "失敗"
+    },
+    "pageHeader": {
+      "title": "戻る"
+    },
+    "popconfirm": {
+      "confirmButtonText": "はい",
+      "cancelButtonText": "いいえ"
+    },
+    "carousel": {
+      "leftArrow": "カルーセルを左へ送る",
+      "rightArrow": "カルーセルを右へ送る",
+      "indicator": "カルーセルの {index} 番目に切り替え"
+    },
+    "inputOTP": {
+      "groupLabel": "ワンタイム認証コード入力",
+      "defaultLabel": "ワンタイム認証コードの {index} 文字目を入力してください"
+    }
+  }
+}

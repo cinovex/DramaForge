@@ -1,0 +1,47 @@
+# OS and editor files
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Python caches
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Local secrets and environment files
+.env
+.env.*
+!.env.example
+secrets.json
+*.secret.json
+*.key
+
+# Logs and temporary files
+*.log
+*.tmp
+tmp/
+temp/
+
+# Generated Pippit outputs and downloaded media
+pippit_output/
+outputs/
+output/
+downloads/
+generated/
+*.mp4
+*.mov
+*.m4v
+*.webm
+*.avi
+
+# Local package/build artifacts
+build/
+dist/
+*.egg-info/

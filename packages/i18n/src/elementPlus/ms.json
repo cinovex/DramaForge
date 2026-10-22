@@ -1,0 +1,205 @@
+{
+  "name": "ms",
+  "el": {
+    "breadcrumb": {
+      "label": "Jejak navigasi"
+    },
+    "colorpicker": {
+      "confirm": "Sahkan",
+      "clear": "Kosongkan",
+      "defaultLabel": "pemilih warna",
+      "description": "Warna semasa ialah {color}. Tekan Enter untuk memilih warna baharu.",
+      "alphaLabel": "Pilih nilai kelegapan",
+      "alphaDescription": "Kelegapan {alpha}, warna semasa ialah {color}",
+      "hueLabel": "Pilih nilai rona",
+      "hueDescription": "Rona {hue}, warna semasa ialah {color}",
+      "svLabel": "Pilih nilai ketepuan dan kecerahan",
+      "svDescription": "Ketepuan {saturation}, kecerahan {brightness}, warna semasa ialah {color}",
+      "predefineDescription": "Pilih {value} sebagai warna"
+    },
+    "datepicker": {
+      "now": "Sekarang",
+      "today": "Hari ini",
+      "cancel": "Batal",
+      "clear": "Kosongkan",
+      "confirm": "Sahkan",
+      "dateTablePrompt": "Gunakan kekunci anak panah dan Enter untuk memilih hari dalam bulan",
+      "monthTablePrompt": "Gunakan kekunci anak panah dan Enter untuk memilih bulan",
+      "quarterTablePrompt": "Gunakan kekunci anak panah dan Enter untuk memilih suku tahun",
+      "yearTablePrompt": "Gunakan kekunci anak panah dan Enter untuk memilih tahun",
+      "selectedDate": "Tarikh yang dipilih",
+      "selectDate": "Pilih tarikh",
+      "selectTime": "Pilih masa",
+      "startDate": "Tarikh Mula",
+      "startTime": "Masa Mula",
+      "endDate": "Tarikh Tamat",
+      "endTime": "Masa Tamat",
+      "prevYear": "Tahun Sebelumnya",
+      "nextYear": "Tahun seterusnya",
+      "prevMonth": "Bulan Sebelumnya",
+      "nextMonth": "Bulan seterusnya",
+      "year": "",
+      "month1": "Januari",
+      "month2": "Februari",
+      "month3": "Mac",
+      "month4": "April",
+      "month5": "Mei",
+      "month6": "Jun",
+      "month7": "Julai",
+      "month8": "Ogos",
+      "month9": "September",
+      "month10": "Oktober",
+      "month11": "November",
+      "month12": "Disember",
+      "weeks": {
+        "sun": "Ahd",
+        "mon": "Isn",
+        "tue": "Sel",
+        "wed": "Rab",
+        "thu": "Kha",
+        "fri": "Jum",
+        "sat": "Sab"
+      },
+      "weeksFull": {
+        "sun": "Ahad",
+        "mon": "Isnin",
+        "tue": "Selasa",
+        "wed": "Rabu",
+        "thu": "Khamis",
+        "fri": "Jumaat",
+        "sat": "Sabtu"
+      },
+      "months": {
+        "jan": "Jan",
+        "feb": "Feb",
+        "mar": "Mac",
+        "apr": "Apr",
+        "may": "Mei",
+        "jun": "Jun",
+        "jul": "Jul",
+        "aug": "Ogo",
+        "sep": "Sep",
+        "oct": "Okt",
+        "nov": "Nov",
+        "dec": "Dis"
+      }
+    },
+    "input": {
+      "characters": "{count} / {max} aksara"
+    },
+    "inputNumber": {
+      "decrease": "Kurangkan nilai",
+      "increase": "Tambahkan nilai"
+    },
+    "select": {
+      "loading": "Memuatkan",
+      "noMatch": "Tiada data yang sepadan",
+      "noData": "Tiada data",
+      "placeholder": "Pilih"
+    },
+    "mention": {
+      "loading": "Memuatkan"
+    },
+    "dropdown": {
+      "toggleDropdown": "Buka atau tutup menu juntai bawah"
+    },
+    "cascader": {
+      "noMatch": "Tiada data yang sepadan",
+      "loading": "Memuatkan",
+      "placeholder": "Pilih",
+      "noData": "Tiada data"
+    },
+    "pagination": {
+      "goto": "Pergi ke",
+      "pagesize": "/halaman",
+      "total": "Jumlah {total}",
+      "pageClassifier": "",
+      "page": "Halaman",
+      "prev": "Halaman sebelumnya",
+      "next": "Halaman seterusnya",
+      "currentPage": "halaman {pager}",
+      "prevPages": "Undur {pager} halaman",
+      "nextPages": "Maju {pager} halaman",
+      "deprecationWarning": "Penggunaan yang tidak lagi disyorkan telah dikesan. Sila rujuk dokumentasi el-pagination untuk butiran lanjut."
+    },
+    "dialog": {
+      "close": "Tutup dialog ini"
+    },
+    "drawer": {
+      "close": "Tutup dialog ini"
+    },
+    "messagebox": {
+      "title": "Mesej",
+      "confirm": "Sahkan",
+      "cancel": "Batal",
+      "error": "Input tidak sah",
+      "close": "Tutup dialog ini"
+    },
+    "upload": {
+      "deleteTip": "Tekan kekunci Delete untuk memadam",
+      "delete": "Padam",
+      "preview": "Pratonton",
+      "continue": "Teruskan"
+    },
+    "slider": {
+      "defaultLabel": "Peluncur antara {min} hingga {max}",
+      "defaultRangeStartLabel": "pilih nilai mula",
+      "defaultRangeEndLabel": "pilih nilai akhir"
+    },
+    "table": {
+      "emptyText": "Tiada Data",
+      "confirmFilter": "Sahkan",
+      "resetFilter": "Tetapkan semula",
+      "clearFilter": "Semua",
+      "sumText": "Jumlah",
+      "selectAllLabel": "Pilih semua baris",
+      "selectRowLabel": "Pilih baris ini",
+      "expandRowLabel": "Kembangkan baris ini",
+      "collapseRowLabel": "Runtuhkan baris ini",
+      "sortLabel": "Isih mengikut {column}",
+      "filterLabel": "Tapis mengikut {column}"
+    },
+    "tag": {
+      "close": "Tutup tag ini"
+    },
+    "tour": {
+      "next": "Seterusnya",
+      "previous": "Sebelumnya",
+      "finish": "Selesai",
+      "close": "Tutup dialog ini"
+    },
+    "tree": {
+      "emptyText": "Tiada Data"
+    },
+    "transfer": {
+      "noMatch": "Tiada data yang sepadan",
+      "noData": "Tiada Data",
+      "titles": [
+        "Senarai 1",
+        "Senarai 2"
+      ],
+      "filterPlaceholder": "Masukkan kata kunci",
+      "noCheckedFormat": "{total} item",
+      "hasCheckedFormat": "{checked}/{total} dipilih"
+    },
+    "image": {
+      "error": "Gagal"
+    },
+    "pageHeader": {
+      "title": "Kembali"
+    },
+    "popconfirm": {
+      "confirmButtonText": "Ya",
+      "cancelButtonText": "Tidak"
+    },
+    "carousel": {
+      "leftArrow": "Anak panah karusel ke kiri",
+      "rightArrow": "Anak panah karusel ke kanan",
+      "indicator": "Tukar karusel kepada indeks {index}"
+    },
+    "inputOTP": {
+      "groupLabel": "Input kod pengesahan sekali guna",
+      "defaultLabel": "Masukkan aksara ke-{index} bagi kod pengesahan sekali guna"
+    }
+  }
+}

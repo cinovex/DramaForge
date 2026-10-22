@@ -1,0 +1,42 @@
+{
+  "name": "@toonflow/ext-md",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": {
+    "build": "vite build --config viteConfig.ts",
+    "dev": "vite build --config viteConfig.ts --watch",
+    "typecheck": "vue-tsc --noEmit"
+  },
+  "peerDependencies": {
+    "@tiptap/core": "3.31.3",
+    "@tiptap/vue-3": "3.31.3",
+    "@tiptap/pm": "3.31.3",
+    "@tiptap/starter-kit": "3.31.3",
+    "@tiptap/markdown": "3.31.3",
+    "@tiptap/extension-list": "3.31.3",
+    "@tiptap/extension-table": "3.31.3",
+    "@tiptap/extension-image": "3.31.3",
+    "@tiptap/extension-highlight": "3.31.3",
+    "@tiptap/extension-superscript": "3.31.3",
+    "@tiptap/extension-subscript": "3.31.3",
+    "@tiptap/extension-text-align": "3.31.3",
+    "@tiptap/extension-find-and-replace": "3.31.3",
+    "dompurify": "3.4.16",
+    "element-plus": "^2.14.5",
+    "marked": "18.0.13",
+    "vue": "^3.5.42"
+  },
+  "dependencies": {
+    "@tabler/icons-vue": "^3.46.0",
+    "@toonflow/i18n": "workspace:*",
+    "@toonflow/ext-scaffold": "workspace:*"
+  },
+  "devDependencies": {
+    "sass": "^1.104.0",
+    "typescript": "~6.0.3",
+    "vite": "^8.2.2",
+    "vue-tsc": "^3.3.11"
+  }
+}

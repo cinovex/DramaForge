@@ -1,0 +1,57 @@
+<template>
+  <div class="workspaceMenu">
+    <el-card shadow="never" :bodyStyle="{ padding: '3px 6px' }">
+      <div class="menuContent">
+        <el-button class="toolButton" text aria-label="退出项目" title="退出项目" @click="exitVisible = true">
+          <icon-logout :size="18" aria-hidden="true" />
+        </el-button>
+      </div>
+    </el-card>
+    <el-dialog v-model="exitVisible" title="退出项目" width="360px" alignCenter appendToBody>
+      <span>是否退出当前项目并返回首页？</span>
+      <template #footer>
+        <el-button @click="exitVisible = false">取消</el-button>
+        <el-button type="primary" :loading="leaving" @click="exitProject">退出项目</el-button>
+      </template>
+    </el-dialog>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref } from "vue";
+import { useRoute, useRouter } from "vue-router";
+import { IconLogout } from "@tabler/icons-vue";
+
+const router = useRouter();
+const route = useRoute();
+const exitVisible = ref(false);
+const leaving = ref(false);
+
+async function exitProject() {
+  if (leaving.value) return;
+  leaving.value = true;
+  try {
+    if (route.query.dramaforgeProjectId) window.location.assign("/projects");
+    else await router.push("/home");
+  } finally {
+    leaving.value = false;
+  }
+}
+</script>
+
+<style scoped lang="scss">
+.workspaceMenu {
+  .menuContent {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+
+    .toolButton {
+      width: 32px;
+      height: 32px;
+      margin: 0;
+      padding: 0;
+    }
+  }
+}
+</style>

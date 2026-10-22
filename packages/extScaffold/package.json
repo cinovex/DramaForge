@@ -1,0 +1,16 @@
+{
+  "name": "@toonflow/ext-scaffold",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./index.ts", "./runtime": "./src/runtime.ts" },
+  "scripts": { "typecheck": "vue-tsc --noEmit" },
+  "peerDependencies": { "vue": "^3.5.42" },
+  "dependencies": {
+    "@toonflow/file": "workspace:*",
+    "@vitejs/plugin-vue": "^6.0.8",
+    "vite": "^8.2.2",
+    "zod": "^4.6.2"
+  },
+  "devDependencies": { "@form-create/element-ui": "^3", "typescript": "~6.0.3", "vue-tsc": "^3.3.11" }
+}

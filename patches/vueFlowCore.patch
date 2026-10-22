@@ -1,0 +1,66 @@
+diff --git a/dist/vue-flow-core.js b/dist/vue-flow-core.js
+index c8213e0..3cc6c59 100644
+--- a/dist/vue-flow-core.js
++++ b/dist/vue-flow-core.js
+@@ -4739,6 +4739,7 @@ function updateEdgeAction(edge, newConnection, prevEdge, shouldReplaceId, trigge
+ function createGraphNodes(nodes, findNode, triggerError) {
+   const parentNodes = {};
+   const nextNodes = [];
++  const nextNodeLookup = new Map();
+   for (let i = 0; i < nodes.length; ++i) {
+     const node = nodes[i];
+     if (!isNode(node)) {
+@@ -4752,9 +4753,10 @@ function createGraphNodes(nodes, findNode, triggerError) {
+       parentNodes[node.parentNode] = true;
+     }
+     nextNodes[i] = parsed;
++    if (!nextNodeLookup.has(parsed.id)) nextNodeLookup.set(parsed.id, parsed);
+   }
+   for (const node of nextNodes) {
+-    const parentNode = findNode(node.parentNode) || nextNodes.find((n) => n.id === node.parentNode);
++    const parentNode = node.parentNode && (findNode(node.parentNode) || nextNodeLookup.get(node.parentNode));
+     if (node.parentNode && !parentNode) {
+       triggerError(new VueFlowError(ErrorCode.NODE_MISSING_PARENT, node.id, node.parentNode));
+     }
+@@ -8288,6 +8290,8 @@ const _sfc_main$a = /* @__PURE__ */ vue.defineComponent({
+       selectionStarted = true;
+       selectionInProgress = false;
+       removeSelectedElements();
++      selectedNodeIds.value = new Set();
++      selectedEdgeIds.value = new Set();
+       userSelectionRect.value = {
+         width: 0,
+         height: 0,
+diff --git a/dist/vue-flow-core.mjs b/dist/vue-flow-core.mjs
+index 96b8e8d..4f1ce5d 100644
+--- a/dist/vue-flow-core.mjs
++++ b/dist/vue-flow-core.mjs
+@@ -4737,6 +4737,7 @@ function updateEdgeAction(edge, newConnection, prevEdge, shouldReplaceId, trigge
+ function createGraphNodes(nodes, findNode, triggerError) {
+   const parentNodes = {};
+   const nextNodes = [];
++  const nextNodeLookup = new Map();
+   for (let i = 0; i < nodes.length; ++i) {
+     const node = nodes[i];
+     if (!isNode(node)) {
+@@ -4750,9 +4751,10 @@ function createGraphNodes(nodes, findNode, triggerError) {
+       parentNodes[node.parentNode] = true;
+     }
+     nextNodes[i] = parsed;
++    if (!nextNodeLookup.has(parsed.id)) nextNodeLookup.set(parsed.id, parsed);
+   }
+   for (const node of nextNodes) {
+-    const parentNode = findNode(node.parentNode) || nextNodes.find((n) => n.id === node.parentNode);
++    const parentNode = node.parentNode && (findNode(node.parentNode) || nextNodeLookup.get(node.parentNode));
+     if (node.parentNode && !parentNode) {
+       triggerError(new VueFlowError(ErrorCode.NODE_MISSING_PARENT, node.id, node.parentNode));
+     }
+@@ -8286,6 +8288,8 @@ const _sfc_main$a = /* @__PURE__ */ defineComponent({
+       selectionStarted = true;
+       selectionInProgress = false;
+       removeSelectedElements();
++      selectedNodeIds.value = new Set();
++      selectedEdgeIds.value = new Set();
+       userSelectionRect.value = {
+         width: 0,
+         height: 0,

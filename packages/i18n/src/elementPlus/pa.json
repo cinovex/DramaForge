@@ -1,0 +1,205 @@
+{
+  "name": "pa-in",
+  "el": {
+    "breadcrumb": {
+      "label": "ਨੈਵੀਗੇਸ਼ਨ ਪਾਥ"
+    },
+    "colorpicker": {
+      "confirm": "ਠੀਕ ਹੈ",
+      "clear": "ਸਾਫ਼ ਕਰੋ",
+      "defaultLabel": "ਰੰਗ ਚੋਣਕਾਰ",
+      "description": "ਮੌਜੂਦਾ ਰੰਗ {color} ਹੈ। ਨਵਾਂ ਰੰਗ ਚੁਣਨ ਲਈ Enter ਦਬਾਓ।",
+      "alphaLabel": "ਅਪਾਰਦਰਸ਼ਤਾ ਦਾ ਮੁੱਲ ਚੁਣੋ",
+      "alphaDescription": "ਅਪਾਰਦਰਸ਼ਤਾ {alpha}, ਮੌਜੂਦਾ ਰੰਗ {color} ਹੈ",
+      "hueLabel": "ਰੰਗਤ ਦਾ ਮੁੱਲ ਚੁਣੋ",
+      "hueDescription": "ਰੰਗਤ {hue}, ਮੌਜੂਦਾ ਰੰਗ {color} ਹੈ",
+      "svLabel": "ਰੰਗ ਦੀ ਸੰਤ੍ਰਿਪਤੀ ਅਤੇ ਚਮਕ ਦੇ ਮੁੱਲ ਚੁਣੋ",
+      "svDescription": "ਰੰਗ ਦੀ ਸੰਤ੍ਰਿਪਤੀ {saturation}, ਚਮਕ {brightness}, ਮੌਜੂਦਾ ਰੰਗ {color} ਹੈ",
+      "predefineDescription": "{value} ਨੂੰ ਰੰਗ ਵਜੋਂ ਚੁਣੋ"
+    },
+    "datepicker": {
+      "now": "ਹੁਣ",
+      "today": "ਅੱਜ",
+      "cancel": "ਰੱਦ ਕਰੋ",
+      "clear": "ਸਾਫ਼ ਕਰੋ",
+      "confirm": "ਠੀਕ ਹੈ",
+      "dateTablePrompt": "ਮਹੀਨੇ ਦਾ ਦਿਨ ਚੁਣਨ ਲਈ ਤੀਰ ਵਾਲੀਆਂ ਕੁੰਜੀਆਂ ਅਤੇ Enter ਵਰਤੋ",
+      "monthTablePrompt": "ਮਹੀਨਾ ਚੁਣਨ ਲਈ ਤੀਰ ਵਾਲੀਆਂ ਕੁੰਜੀਆਂ ਅਤੇ Enter ਵਰਤੋ",
+      "quarterTablePrompt": "ਤਿਮਾਹੀ ਚੁਣਨ ਲਈ ਤੀਰ ਵਾਲੀਆਂ ਕੁੰਜੀਆਂ ਅਤੇ Enter ਵਰਤੋ",
+      "yearTablePrompt": "ਸਾਲ ਚੁਣਨ ਲਈ ਤੀਰ ਵਾਲੀਆਂ ਕੁੰਜੀਆਂ ਅਤੇ Enter ਵਰਤੋ",
+      "selectedDate": "ਚੁਣੀ ਹੋਈ ਤਾਰੀਖ",
+      "selectDate": "ਤਾਰੀਖ ਚੁਣੋ",
+      "selectTime": "ਸਮਾਂ ਚੁਣੋ",
+      "startDate": "ਸ਼ੁਰੂਆਤੀ ਤਾਰੀਖ",
+      "startTime": "ਸ਼ੁਰੂਆਤੀ ਸਮਾਂ",
+      "endDate": "ਅੰਤਿਮ ਤਾਰੀਖ",
+      "endTime": "ਅੰਤਿਮ ਸਮਾਂ",
+      "prevYear": "ਪਿਛਲਾ ਸਾਲ",
+      "nextYear": "ਅਗਲਾ ਸਾਲ",
+      "prevMonth": "ਪਿਛਲਾ ਮਹੀਨਾ",
+      "nextMonth": "ਅਗਲਾ ਮਹੀਨਾ",
+      "year": "",
+      "month1": "ਜਨਵਰੀ",
+      "month2": "ਫ਼ਰਵਰੀ",
+      "month3": "ਮਾਰਚ",
+      "month4": "ਅਪ੍ਰੈਲ",
+      "month5": "ਮਈ",
+      "month6": "ਜੂਨ",
+      "month7": "ਜੁਲਾਈ",
+      "month8": "ਅਗਸਤ",
+      "month9": "ਸਤੰਬਰ",
+      "month10": "ਅਕਤੂਬਰ",
+      "month11": "ਨਵੰਬਰ",
+      "month12": "ਦਸੰਬਰ",
+      "weeks": {
+        "sun": "ਐਤ",
+        "mon": "ਸੋਮ",
+        "tue": "ਮੰਗਲ",
+        "wed": "ਬੁੱਧ",
+        "thu": "ਵੀਰ",
+        "fri": "ਸ਼ੁੱਕਰ",
+        "sat": "ਸ਼ਨਿੱਚਰ"
+      },
+      "weeksFull": {
+        "sun": "ਐਤਵਾਰ",
+        "mon": "ਸੋਮਵਾਰ",
+        "tue": "ਮੰਗਲਵਾਰ",
+        "wed": "ਬੁੱਧਵਾਰ",
+        "thu": "ਵੀਰਵਾਰ",
+        "fri": "ਸ਼ੁੱਕਰਵਾਰ",
+        "sat": "ਸ਼ਨਿੱਚਰਵਾਰ"
+      },
+      "months": {
+        "jan": "ਜਨ",
+        "feb": "ਫ਼ਰ",
+        "mar": "ਮਾਰਚ",
+        "apr": "ਅਪ੍ਰੈਲ",
+        "may": "ਮਈ",
+        "jun": "ਜੂਨ",
+        "jul": "ਜੁਲਾਈ",
+        "aug": "ਅਗ",
+        "sep": "ਸਤੰ",
+        "oct": "ਅਕਤੂ",
+        "nov": "ਨਵੰ",
+        "dec": "ਦਸੰ"
+      }
+    },
+    "input": {
+      "characters": "{count} / {max} ਅੱਖਰ"
+    },
+    "inputNumber": {
+      "decrease": "ਸੰਖਿਆ ਘਟਾਓ",
+      "increase": "ਸੰਖਿਆ ਵਧਾਓ"
+    },
+    "select": {
+      "loading": "ਲੋਡ ਹੋ ਰਿਹਾ ਹੈ",
+      "noMatch": "ਕੋਈ ਮੇਲ ਖਾਂਦਾ ਡਾਟਾ ਨਹੀਂ",
+      "noData": "ਕੋਈ ਡਾਟਾ ਨਹੀਂ",
+      "placeholder": "ਚੁਣੋ"
+    },
+    "mention": {
+      "loading": "ਲੋਡ ਹੋ ਰਿਹਾ ਹੈ"
+    },
+    "dropdown": {
+      "toggleDropdown": "ਡ੍ਰੌਪਡਾਊਨ ਖੋਲ੍ਹੋ ਜਾਂ ਬੰਦ ਕਰੋ"
+    },
+    "cascader": {
+      "noMatch": "ਕੋਈ ਮੇਲ ਖਾਂਦਾ ਡਾਟਾ ਨਹੀਂ",
+      "loading": "ਲੋਡ ਹੋ ਰਿਹਾ ਹੈ",
+      "placeholder": "ਚੁਣੋ",
+      "noData": "ਕੋਈ ਡਾਟਾ ਨਹੀਂ"
+    },
+    "pagination": {
+      "goto": "ਇੱਥੇ ਜਾਓ",
+      "pagesize": "/ਪੰਨਾ",
+      "total": "ਕੁੱਲ {total}",
+      "pageClassifier": "",
+      "page": "ਪੰਨਾ",
+      "prev": "ਪਿਛਲੇ ਪੰਨੇ ਤੇ ਜਾਓ",
+      "next": "ਅਗਲੇ ਪੰਨੇ ਤੇ ਜਾਓ",
+      "currentPage": "ਪੰਨਾ {pager}",
+      "prevPages": "ਪਿਛਲੇ {pager} ਪੰਨੇ",
+      "nextPages": "ਅਗਲੇ {pager} ਪੰਨੇ",
+      "deprecationWarning": "ਪੁਰਾਣੇ ਵਰਤੋਂ ਦੇ ਤਰੀਕੇ ਮਿਲੇ ਹਨ ਜਿਨ੍ਹਾਂ ਦੀ ਹੁਣ ਸਿਫ਼ਾਰਸ਼ ਨਹੀਂ ਕੀਤੀ ਜਾਂਦੀ। ਹੋਰ ਜਾਣਕਾਰੀ ਲਈ el-pagination ਦੇ ਦਸਤਾਵੇਜ਼ ਵੇਖੋ"
+    },
+    "dialog": {
+      "close": "ਇਹ ਡਾਇਲਾਗ ਬੰਦ ਕਰੋ"
+    },
+    "drawer": {
+      "close": "ਇਹ ਡਾਇਲਾਗ ਬੰਦ ਕਰੋ"
+    },
+    "messagebox": {
+      "title": "ਸੁਨੇਹਾ",
+      "confirm": "ਠੀਕ ਹੈ",
+      "cancel": "ਰੱਦ ਕਰੋ",
+      "error": "ਅਵੈਧ ਇਨਪੁੱਟ",
+      "close": "ਇਹ ਡਾਇਲਾਗ ਬੰਦ ਕਰੋ"
+    },
+    "upload": {
+      "deleteTip": "ਹਟਾਉਣ ਲਈ Delete ਦਬਾਓ",
+      "delete": "ਮਿਟਾਓ",
+      "preview": "ਝਲਕ ਵੇਖੋ",
+      "continue": "ਜਾਰੀ ਰੱਖੋ"
+    },
+    "slider": {
+      "defaultLabel": "{min} ਅਤੇ {max} ਵਿਚਕਾਰ ਸਲਾਈਡਰ",
+      "defaultRangeStartLabel": "ਸ਼ੁਰੂਆਤੀ ਮੁੱਲ ਚੁਣੋ",
+      "defaultRangeEndLabel": "ਅੰਤਿਮ ਮੁੱਲ ਚੁਣੋ"
+    },
+    "table": {
+      "emptyText": "ਕੋਈ ਡਾਟਾ ਨਹੀਂ",
+      "confirmFilter": "ਪੁਸ਼ਟੀ ਕਰੋ",
+      "resetFilter": "ਰੀਸੈੱਟ ਕਰੋ",
+      "clearFilter": "ਸਾਰੇ",
+      "sumText": "ਜੋੜ",
+      "selectAllLabel": "ਸਾਰੀਆਂ ਕਤਾਰਾਂ ਚੁਣੋ",
+      "selectRowLabel": "ਇਹ ਕਤਾਰ ਚੁਣੋ",
+      "expandRowLabel": "ਇਹ ਕਤਾਰ ਫੈਲਾਓ",
+      "collapseRowLabel": "ਇਹ ਕਤਾਰ ਸਮੇਟੋ",
+      "sortLabel": "{column} ਅਨੁਸਾਰ ਕ੍ਰਮਬੱਧ ਕਰੋ",
+      "filterLabel": "{column} ਅਨੁਸਾਰ ਫਿਲਟਰ ਕਰੋ"
+    },
+    "tag": {
+      "close": "ਇਹ ਟੈਗ ਬੰਦ ਕਰੋ"
+    },
+    "tour": {
+      "next": "ਅੱਗੇ",
+      "previous": "ਪਿੱਛੇ",
+      "finish": "ਮੁਕੰਮਲ ਕਰੋ",
+      "close": "ਇਹ ਡਾਇਲਾਗ ਬੰਦ ਕਰੋ"
+    },
+    "tree": {
+      "emptyText": "ਕੋਈ ਡਾਟਾ ਨਹੀਂ"
+    },
+    "transfer": {
+      "noMatch": "ਕੋਈ ਮੇਲ ਖਾਂਦਾ ਡਾਟਾ ਨਹੀਂ",
+      "noData": "ਕੋਈ ਡਾਟਾ ਨਹੀਂ",
+      "titles": [
+        "ਸੂਚੀ 1",
+        "ਸੂਚੀ 2"
+      ],
+      "filterPlaceholder": "ਖੋਜ ਸ਼ਬਦ ਲਿਖੋ",
+      "noCheckedFormat": "{total} ਆਈਟਮਾਂ",
+      "hasCheckedFormat": "{checked}/{total} ਚੁਣੀਆਂ ਹੋਈਆਂ"
+    },
+    "image": {
+      "error": "ਅਸਫਲ"
+    },
+    "pageHeader": {
+      "title": "ਵਾਪਸ"
+    },
+    "popconfirm": {
+      "confirmButtonText": "ਹਾਂ",
+      "cancelButtonText": "ਨਹੀਂ"
+    },
+    "carousel": {
+      "leftArrow": "ਕੈਰੋਸੈਲ ਦਾ ਖੱਬਾ ਤੀਰ",
+      "rightArrow": "ਕੈਰੋਸੈਲ ਦਾ ਸੱਜਾ ਤੀਰ",
+      "indicator": "ਕੈਰੋਸੈਲ ਦੇ {index} ਸੂਚਕਾਂਕ ਤੇ ਜਾਓ"
+    },
+    "inputOTP": {
+      "groupLabel": "ਇੱਕ ਵਾਰ ਵਰਤਿਆ ਜਾਣ ਵਾਲਾ ਪੁਸ਼ਟੀਕਰਨ ਕੋਡ",
+      "defaultLabel": "ਪੁਸ਼ਟੀਕਰਨ ਕੋਡ ਦਾ {index}ਵਾਂ ਅੱਖਰ ਲਿਖੋ"
+    }
+  }
+}

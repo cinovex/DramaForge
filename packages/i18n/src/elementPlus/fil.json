@@ -1,0 +1,205 @@
+{
+  "name": "tl-ph",
+  "el": {
+    "breadcrumb": {
+      "label": "Landas ng nabigasyon"
+    },
+    "colorpicker": {
+      "confirm": "Kumpirmahin",
+      "clear": "I-clear",
+      "defaultLabel": "Tagapili ng kulay",
+      "description": "Ang kasalukuyang kulay ay {color}. Pindutin ang Enter upang pumili ng bagong kulay.",
+      "alphaLabel": "Piliin ang antas ng pagiging hindi transparent",
+      "alphaDescription": "Antas ng pagiging hindi transparent: {alpha}, kasalukuyang kulay: {color}",
+      "hueLabel": "Piliin ang tono ng kulay",
+      "hueDescription": "Tono: {hue}, kasalukuyang kulay: {color}",
+      "svLabel": "Piliin ang tingkad at liwanag",
+      "svDescription": "Tingkad: {saturation}, liwanag: {brightness}, kasalukuyang kulay: {color}",
+      "predefineDescription": "Piliin ang {value} bilang kulay"
+    },
+    "datepicker": {
+      "now": "Ngayon",
+      "today": "Ngayong araw",
+      "cancel": "Kanselahin",
+      "clear": "I-clear",
+      "confirm": "Kumpirmahin",
+      "dateTablePrompt": "Gamitin ang mga arrow key at Enter upang piliin ang araw ng buwan",
+      "monthTablePrompt": "Gamitin ang mga arrow key at Enter upang piliin ang buwan",
+      "quarterTablePrompt": "Gamitin ang mga arrow key at Enter upang piliin ang tatlong-buwang yugto ng taon",
+      "yearTablePrompt": "Gamitin ang mga arrow key at Enter upang piliin ang taon",
+      "selectedDate": "Napiling petsa",
+      "selectDate": "Pumili ng petsa",
+      "selectTime": "Pumili ng oras",
+      "startDate": "Petsa ng simula",
+      "startTime": "Oras ng simula",
+      "endDate": "Petsa ng pagtatapos",
+      "endTime": "Oras ng pagtatapos",
+      "prevYear": "Nakaraang taon",
+      "nextYear": "Susunod na taon",
+      "prevMonth": "Nakaraang buwan",
+      "nextMonth": "Susunod na buwan",
+      "year": "",
+      "month1": "Enero",
+      "month2": "Pebrero",
+      "month3": "Marso",
+      "month4": "Abril",
+      "month5": "Mayo",
+      "month6": "Hunyo",
+      "month7": "Hulyo",
+      "month8": "Agosto",
+      "month9": "Setyembre",
+      "month10": "Oktubre",
+      "month11": "Nobyembre",
+      "month12": "Disyembre",
+      "weeks": {
+        "sun": "Lin",
+        "mon": "Lun",
+        "tue": "Mar",
+        "wed": "Miy",
+        "thu": "Huw",
+        "fri": "Biy",
+        "sat": "Sab"
+      },
+      "weeksFull": {
+        "sun": "Linggo",
+        "mon": "Lunes",
+        "tue": "Martes",
+        "wed": "Miyerkules",
+        "thu": "Huwebes",
+        "fri": "Biyernes",
+        "sat": "Sabado"
+      },
+      "months": {
+        "jan": "Ene",
+        "feb": "Peb",
+        "mar": "Mar",
+        "apr": "Abr",
+        "may": "May",
+        "jun": "Hun",
+        "jul": "Hul",
+        "aug": "Ago",
+        "sep": "Set",
+        "oct": "Okt",
+        "nov": "Nob",
+        "dec": "Dis"
+      }
+    },
+    "input": {
+      "characters": "{count} / {max} na character"
+    },
+    "inputNumber": {
+      "decrease": "Bawasan ang halaga",
+      "increase": "Dagdagan ang halaga"
+    },
+    "select": {
+      "loading": "Naglo-load",
+      "noMatch": "Walang katugmang datos",
+      "noData": "Walang datos",
+      "placeholder": "Pumili"
+    },
+    "mention": {
+      "loading": "Naglo-load"
+    },
+    "dropdown": {
+      "toggleDropdown": "Buksan o isara ang drop-down menu"
+    },
+    "cascader": {
+      "noMatch": "Walang katugmang datos",
+      "loading": "Naglo-load",
+      "placeholder": "Pumili",
+      "noData": "Walang datos"
+    },
+    "pagination": {
+      "goto": "Pumunta sa",
+      "pagesize": "/pahina",
+      "total": "Kabuuan: {total}",
+      "pageClassifier": "",
+      "page": "Pahina",
+      "prev": "Pumunta sa nakaraang pahina",
+      "next": "Pumunta sa susunod na pahina",
+      "currentPage": "Pahina {pager}",
+      "prevPages": "Bumalik nang {pager} pahina",
+      "nextPages": "Sumulong nang {pager} pahina",
+      "deprecationWarning": "May natukoy na paggamit na hindi na inirerekomenda. Tingnan ang dokumentasyon ng el-pagination para sa mga detalye."
+    },
+    "dialog": {
+      "close": "Isara ang dialog na ito"
+    },
+    "drawer": {
+      "close": "Isara ang dialog na ito"
+    },
+    "messagebox": {
+      "title": "Mensahe",
+      "confirm": "Kumpirmahin",
+      "cancel": "Kanselahin",
+      "error": "Hindi wastong input",
+      "close": "Isara ang dialog na ito"
+    },
+    "upload": {
+      "deleteTip": "Pindutin ang Delete upang alisin",
+      "delete": "Tanggalin",
+      "preview": "Silipin",
+      "continue": "Magpatuloy"
+    },
+    "slider": {
+      "defaultLabel": "Slider mula {min} hanggang {max}",
+      "defaultRangeStartLabel": "Piliin ang panimulang halaga",
+      "defaultRangeEndLabel": "Piliin ang panghuling halaga"
+    },
+    "table": {
+      "emptyText": "Walang datos",
+      "confirmFilter": "Kumpirmahin",
+      "resetFilter": "Ibalik sa dati",
+      "clearFilter": "Lahat",
+      "sumText": "Kabuuan",
+      "selectAllLabel": "Piliin ang lahat ng hilera",
+      "selectRowLabel": "Piliin ang hilerang ito",
+      "expandRowLabel": "Palawakin ang hilerang ito",
+      "collapseRowLabel": "Paliitin ang hilerang ito",
+      "sortLabel": "Ayusin ayon sa {column}",
+      "filterLabel": "Salain ayon sa {column}"
+    },
+    "tag": {
+      "close": "Isara ang tag na ito"
+    },
+    "tour": {
+      "next": "Susunod",
+      "previous": "Nakaraan",
+      "finish": "Tapusin",
+      "close": "Isara ang dialog na ito"
+    },
+    "tree": {
+      "emptyText": "Walang datos"
+    },
+    "transfer": {
+      "noMatch": "Walang katugmang datos",
+      "noData": "Walang datos",
+      "titles": [
+        "Listahan 1",
+        "Listahan 2"
+      ],
+      "filterPlaceholder": "Maglagay ng keyword",
+      "noCheckedFormat": "{total} na item",
+      "hasCheckedFormat": "{checked}/{total} ang napili"
+    },
+    "image": {
+      "error": "Nabigo"
+    },
+    "pageHeader": {
+      "title": "Bumalik"
+    },
+    "popconfirm": {
+      "confirmButtonText": "Oo",
+      "cancelButtonText": "Hindi"
+    },
+    "carousel": {
+      "leftArrow": "Kaliwang arrow ng carousel",
+      "rightArrow": "Kanang arrow ng carousel",
+      "indicator": "Lumipat sa item na may index {index} sa carousel"
+    },
+    "inputOTP": {
+      "groupLabel": "Paglalagay ng minsanang code sa pagpapatunay",
+      "defaultLabel": "Ilagay ang ika-{index} na character ng minsanang code sa pagpapatunay"
+    }
+  }
+}

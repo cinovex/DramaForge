@@ -1,0 +1,351 @@
+name: Debug build
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 构建平台
+        type: choice
+        default: windowsX64
+        options: [windowsX64, macArm64, macX64, androidArm64, all]
+      ref:
+        description: 代码分支、标签或提交；签名构建要求与所选工作流版本为同一提交
+        type: string
+      version:
+        description: 包版本号（如 2.0.1），留空使用标签或项目配置
+        type: string
+      generatePatch:
+        description: 基于上一版本生成增量更新，尚无基线时生成首版完整包
+        type: boolean
+        default: false
+      androidRelease:
+        description: Android 发布模式（R8 与资源裁剪，关闭调试，使用默认签名）
+        type: boolean
+        default: false
+  workflow_call:
+    inputs:
+      target:
+        type: string
+        default: all
+      ref:
+        type: string
+        default: ""
+      version:
+        type: string
+        default: ""
+      generatePatch:
+        type: boolean
+        default: false
+      androidRelease:
+        type: boolean
+        default: false
+    secrets:
+      MACOS_CERTIFICATE_BASE64:
+        description: 包含 Developer ID Application 证书及私钥的 P12 Base64
+        required: false
+      MACOS_CERTIFICATE_PASSWORD:
+        description: P12 导出密码
+        required: false
+      MACOS_NOTARIZATION_KEY_ID:
+        description: App Store Connect 团队 API Key ID
+        required: false
+      MACOS_NOTARIZATION_ISSUER_ID:
+        description: App Store Connect 团队 API Issuer ID
+        required: false
+      MACOS_NOTARIZATION_KEY_BASE64:
+        description: 对应 API 密钥的 P8 私钥文件 Base64
+        required: false
+    outputs:
+      version:
+        description: 实际构建的包版本号
+        value: ${{ jobs.prepare.outputs.version }}
+      commit:
+        description: 实际构建的提交
+        value: ${{ jobs.prepare.outputs.commit }}
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  prepare:
+    name: 确定版本与平台
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.config.outputs.version }}
+      matrix: ${{ steps.config.outputs.matrix }}
+      commit: ${{ steps.checkout.outputs.commit }}
+    steps:
+      - uses: actions/checkout@v7
+        id: checkout
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+      - name: 校验构建参数
+        id: config
+        env:
+          buildTarget: ${{ inputs.target }}
+          buildRef: ${{ inputs.ref || github.ref_name }}
+          buildVersion: ${{ inputs.version }}
+        run: |
+          bun -e '
+          import { appendFileSync } from "node:fs";
+          import config from "./electrobun.config.ts";
+          const targets = [
+            { target: "windowsX64", os: "windows-2025", platform: "win32", arch: "x64", releaseFolder: "build/desktop/releases" },
+            { target: "macArm64", os: "macos-15", platform: "darwin", arch: "arm64", releaseFolder: "build/desktop/releases/macArm64" },
+            { target: "macX64", os: "macos-15-intel", platform: "darwin", arch: "x64", releaseFolder: "build/desktop/releases/macX64" },
+            { target: "androidArm64", os: "windows-2025", platform: "win32", arch: "x64", releaseFolder: "build/mobile/releases" },
+          ];
+          const selected = process.env.buildTarget || "all";
+          const include = targets.filter(item => selected === "all" || item.target === selected);
+          if (!include.length) throw new Error(`不支持的构建平台：${selected}`);
+          const refVersion = /^v\d+\.\d+\.\d+$/.test(process.env.buildRef ?? "") ? process.env.buildRef : "";
+          const version = (process.env.buildVersion?.trim() || refVersion || config.app.version).replace(/^v/, "");
+          if (!/^\d+\.\d+\.\d+$/.test(version)) throw new Error("版本号必须为 X.Y.Z");
+          appendFileSync(process.env.GITHUB_OUTPUT, `version=${version}\nmatrix=${JSON.stringify({ include })}\n`);
+          '
+
+  build:
+    name: 构建 ${{ matrix.target }}
+    needs: prepare
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v'))
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}
+    env:
+      appVersion: ${{ needs.prepare.outputs.version }}
+      releaseMode: ${{ inputs.generatePatch && '--auto' || '--initial' }}
+      macCodesign: ${{ matrix.target == 'macArm64' && '1' || '0' }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # ACT: 签名只使用触发工作流的代码，避免额外 ref 引入未审查的 PR 代码。
+          ref: ${{ matrix.target == 'macArm64' && github.sha || needs.prepare.outputs.commit }}
+          persist-credentials: false
+      - name: 校验签名来源
+        if: matrix.target == 'macArm64'
+        env:
+          buildCommit: ${{ needs.prepare.outputs.commit }}
+        run: |
+          if [[ "$(git rev-parse HEAD)" != "$buildCommit" ]]; then
+            echo '::error::签名构建不能使用其他提交。请选择对应的工作流分支或标签，并将 ref 留空。'
+            exit 1
+          fi
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+      - name: 确认运行器系统与架构
+        env:
+          expectedPlatform: ${{ matrix.platform }}
+          expectedArch: ${{ matrix.arch }}
+        run: bun -e 'if (process.platform !== process.env.expectedPlatform || process.arch !== process.env.expectedArch) throw new Error("运行器系统或架构与目标不一致");'
+      - name: 准备 Android JDK 与 SDK 目录
+        if: matrix.target == 'androidArm64'
+        shell: pwsh
+        run: |
+          if (!(Test-Path -LiteralPath "$env:JAVA_HOME_17_X64/bin/javac.exe")) { throw '找不到运行器 JDK 17' }
+          if (!$env:ANDROID_HOME -or !(Test-Path -LiteralPath $env:ANDROID_HOME -PathType Container)) { throw '找不到运行器 Android SDK 目录' }
+          "JAVA_HOME=$env:JAVA_HOME_17_X64" >> $env:GITHUB_ENV
+          $env:JAVA_HOME = $env:JAVA_HOME_17_X64
+      - name: 安装依赖
+        run: bun install --frozen-lockfile
+      - name: 安装 Intel Mac 兼容 SDK
+        if: matrix.target == 'macX64'
+        working-directory: compat/macIntel
+        run: bun install --frozen-lockfile
+      - name: 准备 Electrobun SDK
+        if: matrix.target != 'macX64' && matrix.target != 'androidArm64'
+        run: bun apps/desktop/node_modules/electrobun/bin/electrobun.cjs prepare
+      - name: 编译 macOS 原生启动库
+        if: runner.os == 'macOS'
+        run: bun packages/startup/scripts/buildMac.ts
+      - name: 准备 NSIS
+        if: matrix.target == 'windowsX64'
+        shell: pwsh
+        run: |
+          $nsisPath = 'C:/Program Files (x86)/NSIS/makensis.exe'
+          if (!(Test-Path -LiteralPath $nsisPath)) {
+            choco install nsis --yes --no-progress
+            if ($LASTEXITCODE -ne 0) { throw 'NSIS 安装失败' }
+          }
+          if (!(Test-Path -LiteralPath $nsisPath)) { throw '找不到 makensis.exe' }
+          "NSIS_PATH=$nsisPath" >> $env:GITHUB_ENV
+      - name: 构建 Windows 安装包及更新文件
+        if: matrix.target == 'windowsX64'
+        # ACT: 使用原生环境，避免 Git Bash 的 GNU tar 将 Windows 盘符识别为远程主机。
+        shell: pwsh
+        run: bun run release:desktop "$env:appVersion" "$env:releaseMode"
+      - name: 准备 Android Bun、GeckoView 与构建依赖
+        if: matrix.target == 'androidArm64'
+        shell: pwsh
+        run: bun run --cwd apps/mobile setup
+      - name: 构建 Android APK
+        if: matrix.target == 'androidArm64'
+        shell: pwsh
+        env:
+          androidRelease: ${{ inputs.androidRelease && '1' || '0' }}
+        run: bun run --cwd apps/mobile build
+      - name: 准备 ARM 签名与公证凭据
+        if: matrix.target == 'macArm64'
+        id: signing
+        env:
+          certificateBase64: ${{ secrets.MACOS_CERTIFICATE_BASE64 }}
+          certificatePassword: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          notarizationKeyId: ${{ secrets.MACOS_NOTARIZATION_KEY_ID }}
+          notarizationIssuerId: ${{ secrets.MACOS_NOTARIZATION_ISSUER_ID }}
+          notarizationKeyBase64: ${{ secrets.MACOS_NOTARIZATION_KEY_BASE64 }}
+        run: |
+          set +x
+          : "${certificateBase64:?请配置 MACOS_CERTIFICATE_BASE64 Secret}"
+          : "${certificatePassword:?请配置 MACOS_CERTIFICATE_PASSWORD Secret}"
+          : "${notarizationKeyId:?请配置 MACOS_NOTARIZATION_KEY_ID Secret}"
+          : "${notarizationIssuerId:?请配置 MACOS_NOTARIZATION_ISSUER_ID Secret}"
+          : "${notarizationKeyBase64:?请配置 MACOS_NOTARIZATION_KEY_BASE64 Secret}"
+          umask 077
+          certificatePath="$RUNNER_TEMP/toonflowSigning.p12"
+          keychainPath="$RUNNER_TEMP/toonflowSigning.keychain-db"
+          notarizationKeyPath="$RUNNER_TEMP/toonflowNotarization.p8"
+          trap 'rm -f "$certificatePath"' EXIT
+          printf '%s' "$notarizationKeyBase64" | base64 --decode > "$notarizationKeyPath"
+          openssl pkey -in "$notarizationKeyPath" -passin pass: -check -noout > /dev/null
+          keychainPassword="$(openssl rand -hex 32)"
+          echo "::add-mask::$keychainPassword"
+          printf '%s' "$certificateBase64" | base64 --decode > "$certificatePath"
+          security create-keychain -p "$keychainPassword" "$keychainPath"
+          security set-keychain-settings -lut 7200 "$keychainPath"
+          security unlock-keychain -p "$keychainPassword" "$keychainPath"
+          security import "$certificatePath" -P "$certificatePassword" -k "$keychainPath" -T /usr/bin/codesign > /dev/null
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$keychainPassword" "$keychainPath" > /dev/null
+          security list-keychains -d user -s "$keychainPath"
+          identity="$(security find-identity -v -p codesigning "$keychainPath" | awk '/"Developer ID Application: / { print $2 }')"
+          if [[ ! "$identity" =~ ^[[:xdigit:]]{40}$ ]]; then
+            echo '::error::未找到唯一有效的 Developer ID Application 身份。请检查下方证书类型、有效期及系统信任诊断；不会输出私钥或密码。'
+            # ACT: 身份列表保留系统错误码、隐藏证书姓名。
+            security find-identity -p codesigning "$keychainPath" | sed -E 's/"[^"]*"/"<certificate name hidden>"/g'
+            security find-certificate -a -p "$keychainPath" | bun -e '
+            import { X509Certificate } from "node:crypto";
+            const pem = await Bun.stdin.text();
+            const certificates = pem.match(/-----BEGIN CERTIFICATE-----[\s\S]*?-----END CERTIFICATE-----/g) ?? [];
+            console.log(`导入证书数量：${certificates.length}`);
+            for (const entry of certificates) {
+              const certificate = new X509Certificate(entry);
+              const type = certificate.subject.match(/^CN=(Developer ID Application|Developer ID Installer|Apple Development|Apple Distribution|Mac Developer|3rd Party Mac Developer Application|3rd Party Mac Developer Installer|iPhone Developer|iPhone Distribution):/m)?.[1] ?? "其他或 CA 证书";
+              console.log(JSON.stringify({ type, validFrom: certificate.validFrom, validTo: certificate.validTo }));
+            }
+            '
+            exit 1
+          fi
+          printf 'identity=%s\n' "$identity" >> "$GITHUB_OUTPUT"
+          printf 'notarizationKeyPath=%s\n' "$notarizationKeyPath" >> "$GITHUB_OUTPUT"
+      - name: 为 Apple 公证票据网络错误启用有限重试
+        if: matrix.target == 'macArm64'
+        run: |
+          bun -e '
+          import { chmodSync, mkdirSync, readFileSync, writeFileSync } from "@toonflow/file";
+          import { join } from "node:path";
+          const directory = join(process.env.RUNNER_TEMP, "toonflowMacTools");
+          mkdirSync(directory, { recursive: true });
+          const target = join(directory, "xcrun");
+          // ACT: 无扩展名入口保持 JavaScript 语法，并统一 LF，保证 macOS shebang 可执行。
+          writeFileSync(target, readFileSync("apps/desktop/scripts/macXcrun.ts", "utf8").replace(/\r\n/g, "\n"));
+          chmodSync(target, 0o755);
+          writeFileSync(process.env.GITHUB_PATH, `${directory}\n`, { flag: "a" });
+          '
+      - name: 构建 macOS 安装包及更新文件（ARM 自动公证）
+        if: runner.os == 'macOS'
+        env:
+          ELECTROBUN_DEVELOPER_ID: ${{ steps.signing.outputs.identity }}
+          ELECTROBUN_APPLEAPIKEY: ${{ matrix.target == 'macArm64' && secrets.MACOS_NOTARIZATION_KEY_ID || '' }}
+          ELECTROBUN_APPLEAPIISSUER: ${{ matrix.target == 'macArm64' && secrets.MACOS_NOTARIZATION_ISSUER_ID || '' }}
+          ELECTROBUN_APPLEAPIKEYPATH: ${{ steps.signing.outputs.notarizationKeyPath }}
+        run: bun run release:desktop "$appVersion" "$releaseMode"
+      - name: 清理 ARM 签名与公证凭据
+        if: always() && matrix.target == 'macArm64'
+        run: |
+          rm -f "$RUNNER_TEMP/toonflowSigning.p12" "$RUNNER_TEMP/toonflowNotarization.p8"
+          keychainPath="$RUNNER_TEMP/toonflowSigning.keychain-db"
+          if [[ -f "$keychainPath" ]]; then
+            security delete-keychain "$keychainPath"
+          fi
+      - name: 验证 macOS 更新包与安装镜像
+        if: runner.os == 'macOS'
+        env:
+          releaseDirectory: ${{ matrix.releaseFolder }}/${{ needs.prepare.outputs.version }}
+          signingIdentity: ${{ steps.signing.outputs.identity }}
+        run: |
+          verifyMacArtifact() {
+            if [[ "$macCodesign" == '1' ]]; then
+              codesign --verify --deep --strict --verbose=2 \
+                --test-requirement "=anchor apple generic and certificate leaf[field.1.2.840.113635.100.6.1.13] exists and certificate leaf = H\"$signingIdentity\"" "$1"
+              xcrun stapler validate "$1"
+            fi
+          }
+          inspectionDirectory="$RUNNER_TEMP/toonflowPackageCheck"
+          mkdir -p "$inspectionDirectory"
+          export inspectionDirectory
+          bun -e '
+          import { readdirSync } from "@toonflow/file";
+          import { file, write } from "@toonflow/file/bun";
+          import { join } from "node:path";
+          const directory = process.env.releaseDirectory;
+          const archives = readdirSync(directory).filter(name => name.endsWith(".tar.zst"));
+          if (archives.length !== 1) throw new Error("更新包数量不正确");
+          await write(join(process.env.inspectionDirectory, "app.tar"), Bun.zstdDecompressSync(await file(join(directory, archives[0])).arrayBuffer()));
+          '
+          tar -xf "$inspectionDirectory/app.tar" -C "$inspectionDirectory"
+          app="$inspectionDirectory/toonflow.app"
+          test -s "$app/Contents/Resources/AppIcon.icns"
+          test -s "$app/Contents/Resources/app/bun/index.js"
+          test -x "$app/Contents/MacOS/bun"
+          verifyMacArtifact "$app"
+          mountDirectory="$inspectionDirectory/dmg"
+          mkdir -p "$mountDirectory"
+          for dmg in "$releaseDirectory"/*.dmg; do
+            hdiutil verify "$dmg"
+            verifyMacArtifact "$dmg"
+            hdiutil attach "$dmg" -readonly -nobrowse -mountpoint "$mountDirectory"
+            trap 'hdiutil detach "$mountDirectory"' EXIT
+            test -x "$mountDirectory/toonflow.app/Contents/MacOS/launcher"
+            verifyMacArtifact "$mountDirectory/toonflow.app"
+            hdiutil detach "$mountDirectory"
+            trap - EXIT
+          done
+      - name: 命名 Android 安装包
+        if: matrix.target == 'androidArm64'
+        shell: pwsh
+        env:
+          releaseFolder: ${{ matrix.releaseFolder }}/${{ needs.prepare.outputs.version }}
+          debugSuffix: ${{ !inputs.androidRelease && '-debug' || '' }}
+        run: |
+          bun -e '
+          import { copyFile, mkdir } from "@toonflow/file";
+          import { join } from "node:path";
+          const directory = process.env.releaseFolder;
+          const apkName = `toonflow-${process.env.appVersion}-android-arm64${process.env.debugSuffix}.apk`;
+          await mkdir(directory, { recursive: true });
+          await copyFile("build/mobile/toonflowMobile.apk", join(directory, apkName));
+          '
+      - name: 上传构建产物
+        id: artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: toonflow-${{ needs.prepare.outputs.version }}-${{ matrix.target }}
+          path: ${{ matrix.releaseFolder }}/${{ needs.prepare.outputs.version }}/
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
+      - name: 输出下载链接
+        env:
+          artifactUrl: ${{ steps.artifact.outputs.artifact-url }}
+          artifactTarget: ${{ matrix.target }}
+        run: |
+          printf '[下载 Toonflow %s · %s](%s)\n' "$appVersion" "$artifactTarget" "$artifactUrl" >> "$GITHUB_STEP_SUMMARY"
