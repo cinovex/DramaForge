@@ -1,6 +1,5 @@
 import { resolve } from "node:path";
 import { createApp } from "./app";
-import config from "../../../electrobun.config";
 
 const startTime = Date.now();
 const realPort = Number(process.env.TOONFLOW_PORT ?? 3000);
@@ -10,7 +9,7 @@ const appDirectory = resolve(import.meta.dirname, fromSource ? "../../.." : "../
 const dataDirectory = process.env.TOONFLOW_DATA_DIR ?? resolve(appDirectory, "data");
 const app = await createApp({
   webRoot: resolve(appDirectory, "build/web"),
-  appVersion: config.app.version,
+  appVersion: (process.env.appVersion ?? "2.0.0"),
   dataDirectory,
   toolsRoot: resolve(appDirectory, "build/tools"),
   nodesRoot: resolve(appDirectory, "build/nodes"),

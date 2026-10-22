@@ -1,6 +1,5 @@
 import { copyFile, cp, existsSync, mkdir, readFile, readdir, realpath, rm, writeAtomic } from "@toonflow/file";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
-import config from "../../../electrobun.config";
 
 const mobileRoot = resolve(import.meta.dir, "..");
 const projectRoot = resolve(mobileRoot, "../..");
@@ -9,7 +8,7 @@ const staging = join(buildRoot, "staging");
 const sdkRoot = process.env.ANDROID_HOME || process.env.ANDROID_SDK_ROOT;
 const javaRoot = process.env.JAVA_HOME;
 const abis = ["arm64-v8a"];
-const version = config.app.version;
+const version = (process.env.appVersion ?? "2.0.0");
 const release = process.env.androidRelease === "1";
 
 if (!/^\d+\.\d+\.\d+$/.test(version)) throw new Error("Android 版本号必须为 X.Y.Z。");

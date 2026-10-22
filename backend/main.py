@@ -142,3 +142,6 @@ from api import pippit as pippit_api
 from api import xyq as xyq_api
 app.include_router(pippit_api.router)
 app.include_router(xyq_api.router)
+
+from api import library as libraryApi
+app.include_router(libraryApi.router)

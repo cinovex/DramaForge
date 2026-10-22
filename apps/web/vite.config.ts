@@ -3,7 +3,6 @@ import { defineConfig } from "vite";
 import vue from "@vitejs/plugin-vue";
 import components from "unplugin-vue-components/vite";
 import { ElementPlusResolver } from "unplugin-vue-components/resolvers";
-import desktopConfig from "../../electrobun.config.ts";
 import postcssConfig from "../../postcss.config.ts";
 import { i18nPlugin } from "@toonflow/i18n/vite";
 
@@ -22,7 +21,7 @@ export default defineConfig({
   base: "/canvasApp/",
   css: { postcss: postcssConfig },
   define: {
-    "import.meta.env.appVersion": JSON.stringify(desktopConfig.app.version),
+    "import.meta.env.appVersion": JSON.stringify(process.env.appVersion ?? "2.0.0"),
   },
   server: {
     proxy: {

@@ -129,3 +129,16 @@ class ImageSource(Base):
     prompt = Column(Text, default="")
     model = Column(String(120), default="")
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class pippitTaskRecord(Base):
+    __tablename__ = "pippit_tasks"
+    id = Column(Integer, primary_key=True)
+    run_id = Column(String(200), unique=True, index=True)
+    thread_id = Column(String(200), index=True)
+    message = Column(Text, default="")
+    status = Column(String(50), default="submitted")
+    web_thread_link = Column(Text, default="")
+    result = Column(JSON, default=dict)
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)

@@ -1,6 +1,5 @@
 <template>
   <el-container class="home">
-    <bg class="pageBackground" />
     <el-aside class="homeSidebar" width="252px">
       <button class="sidebarBrand" type="button" aria-label="回到创作首页" @click="selectCreationMode('prompt')">
         <span class="sidebarGlyph" aria-hidden="true"><icon-movie :size="19" /></span>
@@ -8,14 +7,14 @@
       </button>
       <nav class="sidebarNav" aria-label="工作区导航">
         <span class="navCaption">创作工作室</span>
-        <button class="navItem" :class="{ active: creationMode === 'prompt' }" type="button" @click="selectCreationMode('prompt')"><icon-sparkles :size="18" />创作</button>
-        <button class="navItem" :class="{ active: creationMode === 'marketing' }" type="button" @click="selectCreationMode('marketing')"><icon-speakerphone :size="18" />营销 Agent</button>
-        <button class="navItem" :class="{ active: creationMode === 'script' }" type="button" @click="selectCreationMode('script')"><icon-movie :size="18" />短剧 Agent</button>
+        <button class="navItem" :class="{ active: homeSection === 'create' && creationMode === 'prompt' }" type="button" @click="selectCreationMode('prompt')"><icon-sparkles :size="18" />创作</button>
+        <button class="navItem" :class="{ active: homeSection === 'create' && creationMode === 'marketing' }" type="button" @click="selectCreationMode('marketing')"><icon-speakerphone :size="18" />营销 Agent</button>
+        <button class="navItem" :class="{ active: homeSection === 'create' && creationMode === 'script' }" type="button" @click="selectCreationMode('script')"><icon-movie :size="18" />短剧 Agent</button>
         <button class="navItem" type="button" @click="openRecentWorkspace"><icon-layout-grid :size="18" />画布</button>
         <span class="navDivider" />
         <span class="navCaption">项目</span>
-        <button class="navItem" type="button" @click="scrollToProjects"><icon-folder-open :size="18" />项目与素材</button>
-        <button class="navItem" type="button" @click="showSkills"><icon-book :size="18" />技能</button>
+        <button class="navItem" :class="{ active: homeSection === 'assets' }" type="button" @click="scrollToProjects"><icon-folder-open :size="18" />资产库</button>
+        <button class="navItem" :class="{ active: homeSection === 'skills' }" type="button" @click="showSkills"><icon-book :size="18" />技能</button>
         <div class="sidebarRecent">
           <span class="navCaption">最近打开</span>
           <button v-for="project in sortedProjects.slice(0, 4)" :key="project.directory" class="recentItem" type="button" :title="project.name" @click="openProject(project)">
@@ -35,17 +34,20 @@
     </el-aside>
     <el-container class="homeShell">
       <el-header class="pageHeader">
-        <div class="headerBreadcrumb"><span>工作空间</span><span class="breadcrumbSlash">/</span><strong>{{ creationMode === 'script' ? '短剧 Agent' : creationMode === 'marketing' ? '营销 Agent' : '创作' }}</strong></div>
+        <div class="headerBreadcrumb"><span>工作空间</span><span class="breadcrumbSlash">/</span><strong>{{ homeSection === 'assets' ? '资产库' : homeSection === 'skills' ? '技能' : creationMode === 'script' ? '短剧工作室' : creationMode === 'marketing' ? '营销 Agent' : '创作' }}</strong></div>
       </el-header>
       <el-main class="pageContent">
+      <assetLibrary v-if="homeSection === 'assets'" @openProject="openLibraryProject" />
+      <skillLibrary v-else-if="homeSection === 'skills'" @select="selectLibrarySkill" />
+      <template v-else>
       <section class="creationPanel" aria-label="创建项目">
         <div v-if="creationMode === 'script'" class="studioTitle scriptStudioTitle">短剧工作室</div>
         <div v-else class="studioTitle">
-          <span>用</span>
+          <span>开启</span>
           <div class="creationModes" role="tablist" aria-label="创作方式">
-            <button type="button" role="tab" :aria-selected="creationMode === 'prompt'" :class="{ active: creationMode === 'prompt' }" @click="selectCreationMode('prompt')">创作</button>
-            <button type="button" role="tab" :aria-selected="creationMode === 'marketing'" :class="{ active: creationMode === 'marketing' }" @click="selectCreationMode('marketing')">营销</button>
-            <button type="button" role="tab" :aria-selected="creationMode === 'script'" :class="{ active: creationMode === 'script' }" @click="selectCreationMode('script')">短剧</button>
+            <button type="button" role="tab" :aria-selected="creationMode === 'prompt'" :class="{ active: homeSection === 'create' && creationMode === 'prompt' }" @click="selectCreationMode('prompt')">创作</button>
+            <button type="button" role="tab" :aria-selected="creationMode === 'marketing'" :class="{ active: homeSection === 'create' && creationMode === 'marketing' }" @click="selectCreationMode('marketing')">营销</button>
+            <button type="button" role="tab" :aria-selected="false" @click="selectCreationMode('script')">短剧</button>
           </div>
           <span>Agent，将创意变成视频</span>
         </div>
@@ -63,19 +65,21 @@
             <template #footer>
               <div class="composerFooter">
                 <div class="composerTools">
-                  <workspacePicker ref="promptWorkspacePicker" v-model="workspaceDirectory" :disabled="creating || opening" />
+                  <el-select v-model="creationEngine" class="creationEngine" aria-label="创作智能体" :disabled="creating || opening || pippitBusy"><el-option label="工作室智能体" value="studio" /><el-option label="Pippit 海外创作" value="pippit" /></el-select>
+                  <workspacePicker v-if="creationEngine === 'studio'" ref="promptWorkspacePicker" v-model="workspaceDirectory" :disabled="creating || opening" />
                   <el-button text circle :icon="IconPaperclip" :disabled="creating || opening" aria-label="添加附件" title="添加附件" @click="attachmentInput?.click()" />
-                  <span class="skillControl"><skillMenu ref="homeSkillMenu" :directory="workspaceDirectory" :active="true" :disabled="creating || opening" @select="insertSkill" /><span>技能</span></span>
+                  <span v-if="creationEngine === 'studio'" class="skillControl"><skillMenu ref="homeSkillMenu" :directory="workspaceDirectory" :active="true" :disabled="creating || opening" @select="insertSkill" /><span>技能</span></span>
                   <span class="toolDivider" />
-                  <modelPopover v-model="selectedModel" v-model:reasoningEffort="reasoningEffort" class="modelSelect" :disabled="creating || opening" />
-                  <el-button class="canvasToggle" text :aria-pressed="openCanvasAfterPrompt" @click="openCanvasAfterPrompt = !openCanvasAfterPrompt">画布 <el-switch v-model="openCanvasAfterPrompt" size="small" aria-label="创建后打开画布" /></el-button>
+                  <span v-if="creationEngine === 'pippit'" class="engineHint">技能与模型由 Pippit 自动编排</span>
+                  <modelPopover v-else v-model="selectedModel" v-model:reasoningEffort="reasoningEffort" class="modelSelect" :disabled="creating || opening" />
+                  <el-button v-if="creationEngine === 'studio'" class="canvasToggle" text :aria-pressed="openCanvasAfterPrompt" @click="openCanvasAfterPrompt = !openCanvasAfterPrompt">画布 <el-switch v-model="openCanvasAfterPrompt" size="small" aria-label="创建后打开画布" /></el-button>
                 </div>
                 <el-space class="sendActions" wrap :size="12">
-                  <el-button class="sendButton" type="primary" circle :icon="IconArrowUp" :loading="creating" :disabled="creating || opening" :aria-label="workspaceDirectory ? '开始创作' : '选择工作目录并开始创作'" @click="workspaceDirectory ? createProject() : promptWorkspacePicker?.chooseDirectory()">
+                  <el-button class="sendButton" type="primary" circle :icon="IconArrowUp" :loading="creating || pippitBusy" :disabled="creating || opening || pippitBusy || (!prompt.trim() && !promptAttachments.length)" aria-label="开始创作" @click="startCreation">
                   </el-button>
                 </el-space>
               </div>
-              <p v-if="!workspaceDirectory" class="workspaceHint" role="status">请先选择一个空文件夹作为工作目录，画布和素材会保存在这里。</p>
+              <p v-if="creationEngine === 'studio' && !workspaceDirectory" class="workspaceHint" role="status">请先选择一个空文件夹作为工作目录，画布和素材会保存在这里。</p>
             </template>
           </el-card>
         </div>
@@ -123,8 +127,18 @@
           <el-alert v-if="scriptError" class="scriptError" :title="scriptError" type="error" :closable="false" showIcon />
 </div>
 <div v-else-if="studioTab === 'canvas'" class="scriptDropZone"><strong>在创意画布中自由创作</strong><el-button @click="openRecentWorkspace">打开创意画布</el-button></div>
-<div v-else class="scriptDropZone"><strong>{{ studioTab === 'writer' ? 'AI 编剧' : '重制转绘' }}</strong><el-input v-model="pippitMessage" type="textarea" :rows="5" :placeholder="studioTab === 'writer' ? '描述你想创作的故事、人物和要求' : '描述对参考视频的改编、角色、场景和画风要求'" /><input v-if="studioTab === 'remix'" type="file" accept="video/mp4,video/quicktime,video/webm" @change="pippitReference = ($event.target as HTMLInputElement).files?.[0]" /><span>由 Pippit 海外 API 处理，可能消耗积分</span><el-button :loading="pippitBusy" :disabled="!pippitMessage.trim()" @click="submitStudioTask">提交创作</el-button><el-button v-if="pippitTask" :loading="pippitBusy" @click="refreshStudioTask">刷新任务进度</el-button><p role="status" style="white-space:pre-wrap;word-break:break-word">{{ pippitResult }}</p></div>
+<div v-else class="scriptDropZone"><strong>{{ studioTab === 'writer' ? 'AI 编剧' : '重制转绘' }}</strong><el-input v-model="pippitMessage" type="textarea" :rows="5" :placeholder="studioTab === 'writer' ? '描述你想创作的故事、人物和要求' : '描述对参考视频的改编、角色、场景和画风要求'" /><input v-if="studioTab === 'remix'" type="file" accept="video/mp4,video/quicktime,video/webm" @change="pippitReference = ($event.target as HTMLInputElement).files?.[0]" /><span>由 Pippit 海外 API 处理，可能消耗积分</span><el-button :loading="pippitBusy" :disabled="!pippitMessage.trim()" @click="submitStudioTask">提交创作</el-button><el-button v-if="pippitTask" :loading="pippitBusy" @click="refreshStudioTask">刷新任务进度</el-button><section v-if="pippitTask" class="pippitTaskPanel" aria-label="Pippit 创作任务">
+  <div class="pippitTaskHeader"><strong>{{ pippitStatusLabel }}</strong><div><el-button :loading="pippitBusy" @click="importStudioResults">保存素材到资产库</el-button><el-button :disabled="pippitBusy" @click="continueStudioTask">继续修改 / 回复</el-button></div></div>
+  <p v-if="pippitError" role="alert">{{ pippitError }}</p>
+  <p v-for="(text, index) in pippitTexts" :key="index" class="pippitTaskText">{{ text }}</p>
+  <a v-if="safePippitUrl(pippitTask.web_thread_link)" :href="safePippitUrl(pippitTask.web_thread_link)" target="_blank" rel="noopener noreferrer">在 Pippit 查看会话</a>
+  <div v-if="pippitDownloads.length" class="pippitTaskDownloads"><a v-for="(item, index) in pippitDownloads" :key="item.url" :href="item.url" target="_blank" rel="noopener noreferrer">查看 / 下载结果 {{ index + 1 }}</a></div>
+  <details><summary>任务详情与原始需求</summary><p class="pippitTaskText">{{ pippitMessage }}</p><pre>{{ pippitResult }}</pre></details>
+</section><p v-else-if="pippitError" role="alert">{{ pippitError }}</p></div>
         </el-card>
+        <section v-if="creationMode === 'script' && studioTasks.length" class="pippitHistory">
+          <h2>创作任务</h2><button v-for="task in studioTasks" :key="task.run_id" @click="restoreStudioTask(task)"><span>{{ task.message }}</span><small>{{ pippitStatusNames[task.status] || task.status }}</small></button>
+        </section>
       </section>
       <section v-if="creationMode !== 'script'" class="recommendations" aria-labelledby="recommendationsTitle">
         <div class="sectionHeader"><h2 id="recommendationsTitle">推荐创作</h2><span>从一个工作流快速开始</span></div>
@@ -177,6 +191,7 @@
           </el-card>
         </div>
       </section>
+      </template>
       </el-main>
     </el-container>
     <settings v-model="settingsVisible" />
@@ -211,14 +226,17 @@ import { hasDesktopUpdate } from "@/stores/desktopUpdate";
 import { deviceHubEnabled, mobileConnection, mobileConnectionLabel } from "@/lib/mobile";
 import useWorkspaceFiles from "@/lib/workspaceFiles";
 import settings from "@/components/settings/index.vue";
-import bg from "./bg.vue";
+import assetLibrary from "./assetLibrary.vue";
+import skillLibrary from "./skillLibrary.vue";
 import workspacePicker from "./workspacePicker.vue";
 
 const settingsVisible = ref(false);
 const mobileConnectVisible = ref(false);
 const mobileConnect = defineAsyncComponent(() => import("@/components/mobileConnect.vue"));
 const router = useRouter();
+const homeSection = computed(() => router.currentRoute.value.query.section === "assets" ? "assets" : router.currentRoute.value.query.section === "skills" ? "skills" : "create");
 const creationMode = ref<"prompt" | "marketing" | "script">("prompt");
+const creationEngine = ref("studio");
 const creating = ref(false);
 const opening = ref(false);
 const scriptText = ref("");
@@ -233,24 +251,121 @@ const pippitMessage = ref("");
 const pippitReference = ref<File>();
 const pippitBusy = ref(false);
 const pippitResult = ref("");
-const pippitTask = ref<{ thread_id: string; run_id: string }>();
+type PippitTask = { thread_id: string; run_id: string; web_thread_link?: string };
+const pippitTask = ref<PippitTask>();
+const pippitError = ref("");
+type StudioTask = PippitTask & { message: string; status: string; project_id?: number };
+const studioTasks = ref<StudioTask[]>([]);
+async function loadStudioTasks() {
+  try {
+    const response = await fetch(dramaForgeApiUrl("pippit/tasks"));
+    if (!response.ok) return;
+    studioTasks.value = await response.json();
+  } catch { /* A saved task can still be restored while the server is offline. */ }
+}
+async function restoreStudioTask(task: StudioTask) {
+  if (pippitBusy.value) return;
+  studioTab.value = "writer";
+  pippitTask.value = { thread_id: task.thread_id, run_id: task.run_id, web_thread_link: task.web_thread_link };
+  pippitMessage.value = task.message;
+  pippitResult.value = "";
+  await refreshStudioTask();
+}
+async function importStudioResults() {
+  if (!pippitTask.value || pippitBusy.value) return;
+  pippitBusy.value = true;
+  pippitError.value = "";
+  try {
+    const result = await studioRequest("import", JSON.stringify(pippitTask.value));
+    await fetchDramaForgeProjects();
+    await loadStudioTasks();
+    ElMessage.success(result.already_imported ? "此任务已保存，可在资产库查看" : "素材已保存到资产库和项目画布");
+  } catch (error) { pippitError.value = error instanceof Error ? error.message : "保存素材失败"; }
+  finally { pippitBusy.value = false; }
+}
+const pippitSnapshot = computed(() => {
+  try { return JSON.parse(pippitResult.value || "{}"); } catch { return {}; }
+});
+const pippitStatusNames: Record<string, string> = { running: "创作进行中", completed: "会话已结束，请查看结果", success: "会话已结束，请查看结果", failed: "任务失败", requires_action: "等待你的回复", cancelled: "任务已取消" };
+const pippitStatusLabel = computed(() => pippitStatusNames[pippitSnapshot.value.status] || "任务已提交，刷新查看进度");
+const pippitTexts = computed(() => {
+  const texts: string[] = [];
+  for (const message of pippitSnapshot.value.messages ?? []) {
+    if (message.role !== "assistant") continue;
+    for (const part of message.content ?? []) {
+      if (part.hidden || part.is_thought) continue;
+      if (part.type === "text" && typeof part.data === "string") texts.push(part.data);
+      if (part.sub_type === "biz/x_data_intermediate_message" && typeof part.data === "string") {
+        try { const progress = JSON.parse(part.data); if (typeof progress.message === "string") texts.push(progress.message); } catch { /* Ignore malformed progress; raw response remains available. */ }
+      }
+    }
+  }
+  for (const interaction of pippitSnapshot.value.interactions ?? []) {
+    for (const question of interaction.questions ?? []) {
+      if (typeof question === "string") texts.push(question);
+    }
+  }
+  return [...new Set(texts)];
+});
+function safePippitUrl(value: unknown): string | undefined {
+  if (typeof value !== "string") return;
+  try { const url = new URL(value); if (url.protocol === "https:") return url.href; } catch { return; }
+}
+const pippitDownloads = computed(() => [...new Set<unknown>(pippitSnapshot.value.download_urls ?? [])].flatMap(value => {
+  const url = safePippitUrl(value);
+  return url ? [{ url }] : [];
+}));
+function saveStudioTask() {
+  try { localStorage.setItem("dramaForgePippitTask", JSON.stringify({ task: pippitTask.value, result: pippitResult.value, message: pippitMessage.value })); }
+  catch { ElMessage.warning("浏览器未能保存任务记录，请保留 Pippit 会话链接"); }
+}
+async function continueStudioTask() {
+  if (!pippitTask.value || pippitBusy.value) return;
+  const reply = await ElMessageBox.prompt("填写修改要求或回答 Pippit 的追问，将在原会话中继续，可能消耗积分。", "继续创作", { inputType: "textarea", confirmButtonText: "确认发送", cancelButtonText: "取消", inputValidator: value => !!value?.trim() || "请输入回复" }).catch(() => null);
+  if (!reply) return;
+  pippitBusy.value = true;
+  pippitError.value = "";
+  try {
+    const result = await studioRequest("submit", JSON.stringify({ message: reply.value, thread_id: pippitTask.value.thread_id }));
+    const task = result.data ?? result;
+    if (!task.thread_id || !task.run_id) throw new Error("接口未返回任务编号，请到 Pippit 会话检查，避免重复发送");
+    pippitTask.value = { ...pippitTask.value, ...task };
+    pippitResult.value = JSON.stringify(result, null, 2);
+    saveStudioTask();
+    void loadStudioTasks();
+  } catch (error) { pippitError.value = error instanceof Error ? error.message : "回复失败"; }
+  finally { pippitBusy.value = false; }
+}
 async function studioRequest(path: string, body: BodyInit, json = true) {
   const response = await fetch(dramaForgeApiUrl(`pippit/${path}`), { method: "POST", headers: json ? { "Content-Type": "application/json" } : undefined, body });
   const value = await response.json();
   if (!response.ok) throw new Error(typeof value.detail === "string" ? value.detail : "Pippit 请求失败");
   return value;
 }
+async function startCreation() {
+  if (creationEngine.value === "pippit") {
+    if (!prompt.value.trim()) return ElMessage.warning("请描述创作需求");
+    if (promptAttachments.value.some(item => !item.file || !/^(image|video)\//.test(item.mimeType))) return ElMessage.warning("Pippit 创作目前支持本次添加的图片、视频附件，请移除其他附件后重试");
+    pippitMessage.value = prompt.value;
+    await submitStudioTask();
+    return;
+  }
+  if (workspaceDirectory.value) await createProject();
+  else await promptWorkspacePicker.value?.chooseDirectory();
+}
 async function submitStudioTask() {
   if (pippitBusy.value) return;
-  if (studioTab.value === "remix" && !pippitReference.value) return ElMessage.warning("请添加参考视频");
+  const fromHome = creationMode.value !== "script";
+  if (!fromHome && studioTab.value === "remix" && !pippitReference.value) return ElMessage.warning("请添加参考视频");
   const confirmed = await ElMessageBox.confirm("将通过 Pippit 海外 API 提交，可能消耗账户积分，是否继续？", "提交创作", { confirmButtonText: "确认提交", cancelButtonText: "取消" }).then(() => true, () => false);
   if (!confirmed) return;
   pippitBusy.value = true;
-  pippitTask.value = undefined;
+  pippitError.value = "";
   try {
     const assetIds: string[] = [];
-    if (studioTab.value === "remix" && pippitReference.value) {
-      const form = new FormData(); form.append("file", pippitReference.value);
+    const references = fromHome ? promptAttachments.value.map(item => item.file!) : studioTab.value === "remix" && pippitReference.value ? [pippitReference.value] : [];
+    for (const reference of references) {
+      const form = new FormData(); form.append("file", reference);
       const uploaded = await studioRequest("upload", form, false);
       const assetId = uploaded.asset_id ?? uploaded.data?.asset_id;
       if (!assetId) throw new Error("上传未返回素材编号，请重试");
@@ -258,16 +373,21 @@ async function submitStudioTask() {
     }
     const result = await studioRequest("submit", JSON.stringify({ message: pippitMessage.value, asset_ids: assetIds }));
     const task = result.data ?? result;
-    if (task.thread_id && task.run_id) pippitTask.value = { thread_id: task.thread_id, run_id: task.run_id };
+    if (task.thread_id && task.run_id) pippitTask.value = { thread_id: task.thread_id, run_id: task.run_id, web_thread_link: task.web_thread_link };
+    else throw new Error("接口未返回任务编号，请到 Pippit 检查任务，避免重复提交");
     pippitResult.value = JSON.stringify(result, null, 2);
-  } catch (error) { pippitResult.value = error instanceof Error ? error.message : "提交失败"; }
+    saveStudioTask();
+    void loadStudioTasks();
+    if (fromHome) { selectCreationMode("script"); studioTab.value = "writer"; }
+  } catch (error) { pippitError.value = error instanceof Error ? error.message : "提交失败"; if (fromHome) ElMessage.error(pippitError.value); }
   finally { pippitBusy.value = false; }
 }
 async function refreshStudioTask() {
   if (!pippitTask.value || pippitBusy.value) return;
   pippitBusy.value = true;
-  try { pippitResult.value = JSON.stringify(await studioRequest("thread", JSON.stringify(pippitTask.value)), null, 2); }
-  catch (error) { pippitResult.value = error instanceof Error ? error.message : "查询失败"; }
+  pippitError.value = "";
+  try { pippitResult.value = JSON.stringify(await studioRequest("thread", JSON.stringify(pippitTask.value)), null, 2); saveStudioTask(); }
+  catch (error) { pippitError.value = error instanceof Error ? error.message : "查询失败"; }
   finally { pippitBusy.value = false; }
 }
 const scriptFileInput = ref<HTMLInputElement>();
@@ -309,6 +429,15 @@ function dramaForgeApiUrl(path: string) {
 }
 
 onMounted(() => {
+  try {
+    const saved = JSON.parse(localStorage.getItem("dramaForgePippitTask") || "null");
+    if (typeof saved?.task?.thread_id === "string" && typeof saved?.task?.run_id === "string") {
+      pippitTask.value = saved.task;
+      pippitResult.value = typeof saved.result === "string" ? saved.result : "";
+      pippitMessage.value = typeof saved.message === "string" ? saved.message : "";
+    }
+  } catch { ElMessage.warning("任务记录无法读取，可在 Pippit 查看原会话"); }
+
   window.addEventListener("dragend", clearAttachmentDrag, true);
   window.addEventListener("drop", clearAttachmentDrag, true);
   window.addEventListener("blur", clearAttachmentDrag);
@@ -316,6 +445,7 @@ onMounted(() => {
     if (typeof value?.script?.model === "string") scriptModel.value = value.script.model;
   }).catch(() => {});
   void fetchDramaForgeProjects();
+  void loadStudioTasks();
   const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   let phraseIndex = 0;
   watch([() => !!prompt.value, locale], ([hasInput], _previous, onCleanup) => {
@@ -465,6 +595,7 @@ async function startScriptAnalysis() {
 }
 
 function selectCreationMode(mode: "prompt" | "marketing" | "script") {
+  void router.replace({ path: "/home" });
   creationMode.value = mode;
   document.querySelector(".pageContent")?.scrollTo({ top: 0, behavior: "smooth" });
 }
@@ -475,12 +606,24 @@ function insertSkill(name: string) {
 }
 
 function showSkills() {
-  creationMode.value = "prompt";
-  void nextTick(() => homeSkillMenu.value?.$el?.querySelector("button")?.click());
+  void router.push({ path: "/home", query: { section: "skills" } });
 }
-
 function scrollToProjects() {
-  document.getElementById("recentProjects")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  void router.push({ path: "/home", query: { section: "assets" } });
+}
+function selectLibrarySkill(name: string) {
+  if (name === "pippit-skill") {
+    selectCreationMode("script");
+    studioTab.value = "writer";
+    return;
+  }
+  selectCreationMode("prompt");
+  insertSkill(name);
+}
+async function openLibraryProject(id: number) {
+  const item = dramaForgeProjects.value.find(project => project.id === id);
+  if (item) await openDramaForgeProject(item);
+  else ElMessage.warning("项目未找到，请刷新项目列表");
 }
 
 async function openRecentWorkspace() {
@@ -668,6 +811,21 @@ async function createProject(fromPrompt = true) {
 </script>
 
 <style lang="scss" scoped>
+.creationEngine { width: 150px; }
+.engineHint { color: var(--el-text-color-secondary); font-size: 12px; }
+
+.pippitHistory { margin-top: 28px; h2 { font-size: 18px; } button { display: flex; justify-content: space-between; gap: 20px; width: 100%; padding: 16px; margin-bottom: 8px; text-align: left; border: 1px solid var(--el-border-color-lighter); border-radius: 14px; background: var(--el-fill-color-light); color: var(--el-text-color-primary); cursor: pointer; span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } small { flex-shrink: 0; color: var(--el-text-color-secondary); } } }
+
+.pippitTaskPanel {
+  width: 100%; min-width: 0; text-align: left; padding: 20px; border: 1px solid var(--el-border-color); border-radius: 16px; box-sizing: border-box;
+  .pippitTaskHeader { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .pippitTaskText { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.7; }
+  .pippitTaskDownloads { display: flex; flex-wrap: wrap; gap: 16px; margin: 16px 0; }
+  a { color: var(--el-color-primary); }
+  details { margin-top: 16px; }
+  pre { max-height: 320px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
+}
+
 .home {
   position: relative;
   isolation: isolate;
