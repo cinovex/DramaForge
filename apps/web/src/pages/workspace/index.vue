@@ -26,18 +26,34 @@
         :saveNode="saveDocumentNode" />
     </keep-alive>
     <workspaceMenu class="workspaceMenu" />
-    <section v-if="analysisProject && (analysisProject.status === 'analyzing' || analysisProject.analysis_state?.status === 'failed' || analysisProject.analysis_state?.status === 'done')" class="analysisStatus" role="status" aria-live="polite">
-      <strong>{{ analysisProject.status === 'analyzing' ? '正在分析剧本' : analysisProject.analysis_state?.status === 'failed' ? '剧本分析失败' : '剧本分析完成' }}</strong>
-      <span>{{ analysisProject.analysis_state?.status === 'failed' ? analysisProject.analysis_state.error : analysisProject.analysis_state?.progress }}</span>
-      <div v-if="analysisProject.analysis_state?.counts" class="analysisCounts"><span v-for="(label, key) in analysisCountLabels" :key="key">{{ label }} {{ analysisProject.analysis_state.counts[key] ?? 0 }}</span></div>
-      <template v-if="analysisProject.analysis_state?.total">
-        <span>设计任务已完成 {{ analysisProject.analysis_state.completed ?? 0 }}/{{ analysisProject.analysis_state.total }}</span>
-        <el-progress class="analysisProgress" :percentage="Math.min(100, Math.round((analysisProject.analysis_state.completed ?? 0) / analysisProject.analysis_state.total * 100))" :showText="false" />
-      </template>
-      <small v-if="analysisProject.status === 'analyzing'">分析结果会自动更新到画布，无需重复提交。</small>
-      <el-button v-if="analysisProject.analysis_state?.status === 'failed'" size="small" :loading="analysisRetrying" @click="retryAnalysis">重试分析</el-button>
-      <el-button v-if="analysisRefreshError" size="small" @click="refreshDramaForgeProject(String(analysisProject.id))">刷新状态</el-button>
-      <span v-if="analysisRefreshError" role="alert">{{ analysisRefreshError }}</span>
+    <section v-if="analysisProject && !analysisDismissed && (analysisProject.status === 'analyzing' || analysisProject.analysis_state?.status === 'failed' || analysisProject.analysis_state?.status === 'done')" class="analysisStatus" aria-label="剧本分析进度">
+      <header class="analysisHeader">
+        <button class="analysisBack" type="button" aria-label="返回项目资源" @click="router.push('/home?section=projects')">‹</button>
+        <span class="analysisProjectName">{{ analysisProject.name }}</span>
+        <ol class="analysisSteps" aria-label="制作步骤"><li :class="{ active: analysisStep === 1 }">1. 脚本</li><li :class="{ active: analysisStep === 2 }">2. 制作资产库</li><li :class="{ active: analysisStep === 3 }">3. 分镜</li></ol>
+      </header>
+      <div class="analysisBody">
+        <h1>分析脚本</h1>
+        <div class="analysisStage" :class="{ running: analysisProject.status === 'analyzing' }">
+          <div class="analysisStageContent" role="status" aria-live="polite">
+            <div v-if="analysisProject.status === 'analyzing'" class="analysisActivity" aria-hidden="true"><i /><i /><i /></div>
+            <h2>{{ analysisProject.status === 'analyzing' ? analysisProject.analysis_state?.progress || '正在深入分析脚本…' : analysisProject.analysis_state?.status === 'failed' ? '分析暂未完成' : '脚本分析完成' }}</h2>
+            <p v-if="analysisProject.analysis_state?.status === 'failed'" class="analysisError">{{ analysisProject.analysis_state.error }}</p>
+            <p v-else>{{ analysisProject.status === 'analyzing' ? analysisProject.analysis_state?.counts ? '分析结果会自动保存，完成后即可进入画布继续创作' : '你的脚本可能需要一些时间才能阅读完成' : '故事、制作资产与分镜已整理完成' }}</p>
+            <div v-if="analysisProject.analysis_state?.counts" class="analysisCounts"><span v-for="(label, key) in analysisCountLabels" :key="key">{{ label }} <b>{{ analysisProject.analysis_state.counts[key] ?? 0 }}</b></span></div>
+            <div v-if="analysisProject.analysis_state?.total" class="analysisProgress">
+              <el-progress :percentage="Math.min(100, Math.round((analysisProject.analysis_state.completed ?? 0) / analysisProject.analysis_state.total * 100))" :showText="false" :strokeWidth="3" />
+              <span>已完成 {{ analysisProject.analysis_state.completed ?? 0 }} / {{ analysisProject.analysis_state.total }}</span>
+            </div>
+            <div class="analysisActions">
+              <el-button v-if="analysisProject.analysis_state?.status === 'failed'" round :loading="analysisRetrying" @click="retryAnalysis">重新分析</el-button>
+              <el-button v-if="analysisProject.status !== 'analyzing'" round @click="analysisDismissed = true">查看画布</el-button>
+              <el-button v-if="analysisRefreshError" round @click="refreshDramaForgeProject(String(analysisProject.id))">刷新状态</el-button>
+            </div>
+            <p v-if="analysisRefreshError" role="alert">{{ analysisRefreshError }}</p>
+          </div>
+        </div>
+      </div>
     </section>
     <div class="workspaceTools">
       <el-segmented :modelValue="activePanel" class="panelSwitcher" :options="panelOptions" size="small" aria-label="切换面板" @change="switchPanel">
@@ -144,7 +160,7 @@
 
 <script setup lang="ts">
 import { computed, defineAsyncComponent, nextTick, onMounted, onScopeDispose, provide, ref, shallowRef, watch, type ComponentPublicInstance } from "vue";
-import { onBeforeRouteLeave, useRoute } from "vue-router";
+import { onBeforeRouteLeave, useRoute, useRouter } from "vue-router";
 import axios from "axios";
 import { IconVector, IconFileText, IconPointer, IconHandStop, IconPlus, IconHelp, IconBook, IconBug, IconBrandWechat, IconBriefcase, IconSparkles } from "@tabler/icons-vue";
 import { ElMessage, ElMessageBox } from "element-plus";
@@ -263,8 +279,17 @@ const lastDramaForgeSync = new Map<number, string>();
 let registeredDramaForgeBridge: NonNullable<DramaForgeWindow["__DRAMAFORGE_CANVAS_BRIDGE__"]> | undefined;
 const analysisProject = ref<DramaForgeProject | null>(null);
 const analysisRetrying = ref(false);
+const analysisDismissed = ref(false);
+const router = useRouter();
 const analysisRefreshError = ref("");
 const analysisCountLabels = { episodes: "分集", characters: "角色", scenes: "场景", props: "道具", shots: "分镜" };
+const analysisStep = computed(() => {
+  const state = analysisProject.value?.analysis_state;
+  if (state?.status === "done") return 3;
+  if (!state?.counts) return 1;
+  const assetBatches = Math.max(state.counts.characters ?? 0, state.counts.scenes ?? 0);
+  return state.total && (state.completed ?? 0) >= assetBatches ? 3 : 2;
+});
 
 async function retryAnalysis() {
   const project = analysisProject.value;
@@ -519,24 +544,52 @@ function saveDocumentNode(directory: string, canvasPath: string, nodeId: string,
 
   .analysisStatus {
     position: absolute;
-    top: 70px;
-    left: 16px;
-    z-index: 6;
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 8px;
-    max-width: min(440px, calc(100vw - 32px));
-    padding: 16px;
-    border: 1px solid var(--el-border-color);
-    border-radius: 16px;
-    background: var(--el-bg-color-overlay);
-    box-shadow: var(--el-box-shadow-light);
-    span { white-space: pre-wrap; overflow-wrap: anywhere; }
-    small { color: var(--el-text-color-secondary); }
-    .analysisCounts { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; color: var(--el-text-color-secondary); }
-    .analysisProgress { width: 100%; min-width: 240px; }
+    inset: 0;
+    z-index: 20;
+    overflow: auto;
+    color: var(--el-text-color-primary);
+    background: var(--el-bg-color-page);
+
+    .analysisHeader {
+      display: flex; align-items: center; gap: 16px; min-height: 72px;
+      padding: 12px 32px; background: var(--el-bg-color);
+      .analysisBack { width: 34px; height: 34px; border: 0; border-radius: 50%; background: var(--el-fill-color-light); color: inherit; font-size: 26px; cursor: pointer; }
+      .analysisProjectName { font-size: 14px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 38%; }
+      .analysisSteps {
+        display: flex; gap: 10px; margin: 0 0 0 auto; padding: 0; list-style: none; color: var(--el-text-color-secondary); font-size: 13px;
+        li { padding: 10px 24px; border-radius: 24px; white-space: nowrap; }
+        li.active { background: var(--el-text-color-primary); color: var(--el-bg-color); font-weight: 600; }
+      }
+    }
+    .analysisBody {
+      width: min(960px, calc(100% - 64px)); margin: 54px auto;
+      h1 { font-size: 28px; font-weight: 500; margin: 0 0 34px; }
+      .analysisStage {
+        position: relative; display: grid; place-items: center; min-height: min(500px, 62vh); padding: 48px 32px;
+        border-radius: 36px; background: color-mix(in srgb, var(--el-fill-color) 92%, #aaa0d7 8%);
+        box-shadow: 0 0 32px 3px #9c81e71a, inset 0 0 38px #9c81e70d;
+        &.running { animation: analysisGlow 3s ease-in-out infinite alternate; }
+      }
+    }
+    .analysisStageContent {
+      text-align: center; width: min(600px, 100%);
+      h2 { font-size: 18px; font-weight: 500; line-height: 1.7; margin: 0; overflow-wrap: anywhere; }
+      p { font-size: 13px; line-height: 1.8; color: var(--el-text-color-secondary); margin: 8px 0 0; }
+      .analysisError { max-width: 520px; margin: 12px auto 0; }
+      .analysisCounts { display: flex; justify-content: center; flex-wrap: wrap; gap: 12px 22px; margin-top: 28px; font-size: 12px; color: var(--el-text-color-secondary); b { color: var(--el-text-color-primary); font-weight: 500; margin-left: 4px; } }
+      .analysisProgress { width: min(280px, 100%); margin: 26px auto 0; span { display: block; margin-top: 10px; font-size: 12px; color: var(--el-text-color-secondary); } }
+      .analysisActions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 26px; .el-button { margin: 0; min-width: 106px; } }
+      .analysisActivity { display: flex; justify-content: center; gap: 5px; height: 24px; margin-bottom: 22px; i { width: 4px; height: 16px; border-radius: 4px; background: #aa96db; animation: analysisPulse 1.2s ease-in-out infinite; &:nth-child(2) { animation-delay: .15s; } &:nth-child(3) { animation-delay: .3s; } } }
+    }
+    @media (max-width: 680px) {
+      .analysisHeader { padding: 12px 16px; flex-wrap: wrap; gap: 10px; .analysisProjectName { max-width: calc(100% - 48px); } .analysisSteps { width: 100%; justify-content: center; margin: 4px 0 0; gap: 0; li { padding: 8px 16px; } } }
+      .analysisBody { width: calc(100% - 32px); margin-top: 32px; h1 { font-size: 24px; margin-bottom: 24px; } .analysisStage { padding: 32px 20px; border-radius: 24px; } }
+    }
+    @media (prefers-reduced-motion: reduce) { .analysisBody .analysisStage.running, .analysisStageContent .analysisActivity i { animation: none; } }
   }
+
+  @keyframes analysisGlow { to { box-shadow: 0 0 44px 6px #9c81e72b, inset 0 0 46px #9c81e714; } }
+  @keyframes analysisPulse { 0%, 100% { transform: scaleY(.45); opacity: .4; } 50% { transform: scaleY(1); opacity: 1; } }
 
   .canvasPanel {
     position: absolute;
