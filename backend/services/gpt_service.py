@@ -47,13 +47,14 @@ async def chat_completion(
     if json_mode:
         payload["response_format"] = {"type": "json_object"}
 
+    request_timeout = 1800 if max_tokens >= 128000 else 180
     try:
-        async with httpx.AsyncClient(timeout=180) as client:
+        async with httpx.AsyncClient(timeout=request_timeout) as client:
             token_field = "max_completion_tokens" if model.startswith(("gpt-5", "gpt-6")) else "max_tokens"
             first_limit = payload[token_field]
-            retry_limit = min(max(first_limit * 2, first_limit + 4096), 32768)
+            retry_limit = max(first_limit, min(max(first_limit * 2, first_limit + 4096), 32768))
             for attempt in range(2):
-                async with asyncio.timeout(180):
+                async with asyncio.timeout(request_timeout):
                     resp = await client.post(f"{base_url}/chat/completions", headers=headers, json=payload)
                 if resp.status_code == 401:
                     raise GPTError("API Key 无效（401）", 401)
@@ -98,7 +99,7 @@ async def chat_completion(
     except httpx.ConnectError:
         raise GPTError(f"无法连接到 {base_url}（检查 base_url 或网络）", 502)
     except (httpx.TimeoutException, TimeoutError):
-        raise GPTError("请求超时（180s），剧本可能过长或网络问题", 504)
+        raise GPTError(f"请求超时（{request_timeout}s），请检查模型响应或网络后重试", 504)
     except Exception as e:
         raise GPTError(f"GPT 调用异常: {type(e).__name__}: {e}", 502)
 

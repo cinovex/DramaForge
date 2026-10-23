@@ -105,7 +105,7 @@ async def analyze_project(db: Session, project_id: int, model: str | None = None
         updateAnalysisProgress(db, p, f"已读取剧本 {len(p.script_text):,} 字，正在请求模型提取故事、分集、角色、场景和道具；等待完整结果", "structure")
         raw = await gpt_service.chat_completion(
             db, BASE_SYSTEM_PROMPT + f"\n用户选定输出画幅：{(p.generation_settings or {}).get('aspect_ratio','9:16')}，所有构图与提示词须符合此比例。不要假定固定总时长，也不要为凑时长压缩或扩写剧情；根据剧本实际对白的自然语速、动作停顿和转场节奏安排4–12秒整数镜头。剧本中若明确标注集数或时长则尊重该信息；否则让镜头时长自然覆盖完整剧情，所有镜头 duration 之和就是本次分析得出的预计成片时长。对白必须能在相应镜头时长内自然说完。", p.script_text,
-            stage="script", model=model, json_mode=True, max_tokens=8192,
+            stage="script", model=model, json_mode=True, max_tokens=128000,
         )
         phase = "解析模型返回的剧本结构"
         updateAnalysisProgress(db, p, "模型已返回，正在读取故事与分集结构", "structure")
