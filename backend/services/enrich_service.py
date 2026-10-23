@@ -3,7 +3,8 @@ import json
 import hashlib
 from pydantic import BaseModel, ValidationError, model_validator
 from sqlalchemy.orm import Session
-from models.drama import Project, Character, Scene, Shot
+from models.drama import Project, Character, Scene, Prop, Shot
+from services.analysisProgress import updateAnalysisProgress
 from services import gpt_service
 from services.analyze_service import _parse_json
 from services.director_design import DIRECTOR_RULES, schema_hint, CharacterDesign, SceneDesign, ShotDirection, validate_direction, validate_character, fit_timeline
@@ -124,15 +125,22 @@ async def enrich_project(db: Session, project_id: int, model: str | None = None,
                 staged[key] = result.model_dump()
                 project.analysis_state = {**(project.analysis_state or {}), "fingerprint": source_signature, "staged": dict(staged)}
                 db.commit()
-        def progress(message):
+        def progress(message, completed=0, total=0):
             if already_started:
-                project.analysis_state = {**(project.analysis_state or {}), "progress": message}
+                project.analysis_state = {**(project.analysis_state or {}), "progress": message,
+                                          "phase": "design", "completed": completed, "total": total}
                 db.commit()
+        asset_batches = max(len(chars), len(scenes))
+        total_batches = asset_batches + len(shots)
+        updateAnalysisProgress(db, project, "正在准备角色、场景与分镜设计", "design", total=total_batches,
+                               counts={"episodes": len({sh.episode_no for sh in shots}), "characters": len(chars),
+                                       "scenes": len(scenes), "props": db.query(Prop).filter_by(project_id=project_id).count(), "shots": len(shots)})
         progress("分析角色多视图、表情与场景光线")
         for index in range(max(len(chars), len(scenes))):
             current_chars = chars[index:index+1]
             current_scenes = scenes[index:index+1]
-            progress(f"分析角色与场景 {index+1} / {max(len(chars),len(scenes))}")
+            names = [f"角色 {c.name}" for c in current_chars] + [f"场景 {s.name}" for s in current_scenes]
+            progress(f"正在生成{'、'.join(names)}的设计 · 资产批次 {index+1}/{asset_batches}", index, total_batches)
             cached = staged.get(f"assets-{index}")
             raw = json.dumps(cached, ensure_ascii=False) if cached else await gpt_service.chat_completion(db, asset_system,
                 json.dumps({"script": project.script_text,
@@ -172,8 +180,10 @@ async def enrich_project(db: Session, project_id: int, model: str | None = None,
                 validate_character(c.design.model_dump())
             checkpoint(f"assets-{index}", result)
             results.append(result)
+            progress(f"角色与场景设计已完成 {index+1}/{asset_batches} 批", index+1, total_batches)
         for start in range(0, len(shots), 1):
-            progress(f"分析分镜 {start+1}–{min(start+1,len(shots))} / {len(shots)}")
+            current_shot = shots[start]
+            progress(f"正在生成第 {current_shot.episode_no} 集 · 镜头 {current_shot.shot_no} 的导演设计与提示词 · 分镜 {start+1}/{len(shots)}", asset_batches+start, total_batches)
             batch = shots[start:start+1]
             def describe(sh):
                 return {"id": sh.id, "episode": sh.episode_no, "shot": sh.shot_no, "duration": sh.duration,
@@ -219,6 +229,8 @@ async def enrich_project(db: Session, project_id: int, model: str | None = None,
                 validate_direction(sh.direction.model_dump(), next(s.duration for s in batch if s.id == sh.id))
             checkpoint(f"shot-{start}", result)
             results.append(result)
+            progress(f"分镜设计已完成 {start+1}/{len(shots)}", asset_batches+start+1, total_batches)
+        progress("正在保存角色、场景和全部分镜设计", total_batches, total_batches)
         for result in results:
             for c in result.characters:
                 db.get(Character, c.id).design = c.design.model_dump()

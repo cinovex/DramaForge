@@ -52,7 +52,8 @@ def enqueue_analysis(project_id: int, mode: str, model: str | None, db: Session)
     # 会从 analyze 变为 enrich；只要源剧本指纹未变，就继续复用已完成的检查点。
     cache = {k: previous[k] for k in ("staged", "fingerprint") if k in previous} if previous.get("status") == "failed" else {}
     p.analysis_state = {**cache, "status": "running", "previous_status": p.status, "mode": mode,
-                        "progress": "正在分析剧本，请稍候", "started_at": datetime.utcnow().isoformat()}
+                        "progress": f"正在读取剧本（{len(p.script_text):,} 字）", "phase": "reading",
+                        "completed": 0, "total": 0, "started_at": datetime.utcnow().isoformat()}
     p.status = "analyzing"
     db.commit()
     task = asyncio.create_task(_run_analysis(project_id, mode, model))

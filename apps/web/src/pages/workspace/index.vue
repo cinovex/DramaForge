@@ -29,6 +29,11 @@
     <section v-if="analysisProject && (analysisProject.status === 'analyzing' || analysisProject.analysis_state?.status === 'failed' || analysisProject.analysis_state?.status === 'done')" class="analysisStatus" role="status" aria-live="polite">
       <strong>{{ analysisProject.status === 'analyzing' ? '正在分析剧本' : analysisProject.analysis_state?.status === 'failed' ? '剧本分析失败' : '剧本分析完成' }}</strong>
       <span>{{ analysisProject.analysis_state?.status === 'failed' ? analysisProject.analysis_state.error : analysisProject.analysis_state?.progress }}</span>
+      <div v-if="analysisProject.analysis_state?.counts" class="analysisCounts"><span v-for="(label, key) in analysisCountLabels" :key="key">{{ label }} {{ analysisProject.analysis_state.counts[key] ?? 0 }}</span></div>
+      <template v-if="analysisProject.analysis_state?.total">
+        <span>设计任务已完成 {{ analysisProject.analysis_state.completed ?? 0 }}/{{ analysisProject.analysis_state.total }}</span>
+        <el-progress class="analysisProgress" :percentage="Math.min(100, Math.round((analysisProject.analysis_state.completed ?? 0) / analysisProject.analysis_state.total * 100))" :showText="false" />
+      </template>
       <small v-if="analysisProject.status === 'analyzing'">分析结果会自动更新到画布，无需重复提交。</small>
       <el-button v-if="analysisProject.analysis_state?.status === 'failed'" size="small" :loading="analysisRetrying" @click="retryAnalysis">重试分析</el-button>
       <el-button v-if="analysisRefreshError" size="small" @click="refreshDramaForgeProject(String(analysisProject.id))">刷新状态</el-button>
@@ -243,7 +248,7 @@ type DramaForgeProject = {
   status?: string;
   workspace_directory?: string;
   outline?: { title?: string };
-  analysis_state?: { status?: string; progress?: string; error?: string };
+  analysis_state?: { status?: string; progress?: string; error?: string; completed?: number; total?: number; counts?: Record<string, number> };
   shots?: unknown[];
   [key: string]: unknown;
 };
@@ -259,6 +264,7 @@ let registeredDramaForgeBridge: NonNullable<DramaForgeWindow["__DRAMAFORGE_CANVA
 const analysisProject = ref<DramaForgeProject | null>(null);
 const analysisRetrying = ref(false);
 const analysisRefreshError = ref("");
+const analysisCountLabels = { episodes: "分集", characters: "角色", scenes: "场景", props: "道具", shots: "分镜" };
 
 async function retryAnalysis() {
   const project = analysisProject.value;
@@ -528,6 +534,8 @@ function saveDocumentNode(directory: string, canvasPath: string, nodeId: string,
     box-shadow: var(--el-box-shadow-light);
     span { white-space: pre-wrap; overflow-wrap: anywhere; }
     small { color: var(--el-text-color-secondary); }
+    .analysisCounts { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; color: var(--el-text-color-secondary); }
+    .analysisProgress { width: 100%; min-width: 240px; }
   }
 
   .canvasPanel {

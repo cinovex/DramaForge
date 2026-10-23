@@ -5,6 +5,7 @@ from models.drama import (
     Project, Outline, Character, Scene, Prop, Shot
 )
 from services import gpt_service
+from services.analysisProgress import updateAnalysisProgress
 from services.director_design import CharacterDesign, SceneDesign, ShotDirection, validate_character, validate_direction, fit_timeline
 from services.image_prompt_skill import IMAGE_PROMPT_SKILL
 from pydantic import ValidationError
@@ -101,15 +102,18 @@ async def analyze_project(db: Session, project_id: int, model: str | None = None
     phase = "请求剧本结构分析"
     raw = ""
     try:
+        updateAnalysisProgress(db, p, f"已读取剧本 {len(p.script_text):,} 字，正在请求模型提取故事、分集、角色、场景和道具；等待完整结果", "structure")
         raw = await gpt_service.chat_completion(
             db, BASE_SYSTEM_PROMPT + f"\n用户选定输出画幅：{(p.generation_settings or {}).get('aspect_ratio','9:16')}，所有构图与提示词须符合此比例。不要假定固定总时长，也不要为凑时长压缩或扩写剧情；根据剧本实际对白的自然语速、动作停顿和转场节奏安排4–12秒整数镜头。剧本中若明确标注集数或时长则尊重该信息；否则让镜头时长自然覆盖完整剧情，所有镜头 duration 之和就是本次分析得出的预计成片时长。对白必须能在相应镜头时长内自然说完。", p.script_text,
             stage="script", model=model, json_mode=True, max_tokens=8192,
         )
         phase = "解析模型返回的剧本结构"
+        updateAnalysisProgress(db, p, "模型已返回，正在读取故事与分集结构", "structure")
         data = _parse_json(raw)
         if not isinstance(data, dict) or not data.get("episodes"):
             raise ValueError("模型返回了空对象或缺少 episodes 分镜列表")
         phase = "校验角色、场景和分镜字段"
+        updateAnalysisProgress(db, p, f"正在校验 {len(data['episodes'])} 集剧本、角色、场景和分镜", "validation")
         for c in data.get("characters", []):
             c["design"] = CharacterDesign.model_validate(c.get("design", {})).model_dump()
             if c.get("design") and c["design"].get("turnaround_prompt"): validate_character(c["design"])
@@ -223,6 +227,9 @@ async def analyze_project(db: Session, project_id: int, model: str | None = None
 
     p.status = "ready"
     db.commit()
+    updateAnalysisProgress(db, p, f"故事结构已完成：{len(data.get('episodes', []))} 集，{char_count} 个角色，{scene_count} 个场景，{prop_count} 个道具，{shot_count} 个分镜", "assets",
+                           counts={"episodes": len(data.get("episodes", [])), "characters": char_count,
+                                   "scenes": scene_count, "props": prop_count, "shots": shot_count})
 
     return {
         "project_id": project_id,
