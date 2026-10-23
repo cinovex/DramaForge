@@ -17,6 +17,7 @@ const autoInstallProviders = ["tfRouter.ts", "apiMart.ts", "metaso.ts", "compsha
 
 export async function createApp({
   webRoot,
+  webRedirect,
   appVersion = "",
   dataDirectory,
   toolsRoot,
@@ -27,7 +28,8 @@ export async function createApp({
   agentsRoot,
   pluginRevision,
 }: {
-  webRoot: string;
+  webRoot?: string;
+  webRedirect?: string;
   appVersion?: string;
   dataDirectory?: string;
   toolsRoot?: string;
@@ -102,7 +104,11 @@ export async function createApp({
   }));
   const { createA2aRouter } = await import("@/agent/a2a");
   app.use("/a2a", createA2aRouter());
-  app.use(express.static(webRoot));
+  if (webRoot) app.use(express.static(webRoot));
+  else if (webRedirect) app.use((request, response, next) => {
+    if (!["GET", "HEAD"].includes(request.method) || /^\/(api|mcp|a2a)(\/|$)/.test(request.path)) return next();
+    response.redirect(307, webRedirect);
+  });
 
   // 错误处理
   app.use((err: Error & { status?: number }, request: Request, response: Response, next: NextFunction) => {

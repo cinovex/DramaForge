@@ -10,7 +10,7 @@ const fromSource = import.meta.path.endsWith(".ts");
 const appDirectory = resolve(import.meta.dirname, fromSource ? "../../.." : "../..");
 const dataDirectory = process.env.TOONFLOW_DATA_DIR ?? resolve(appDirectory, "data");
 const app = await createApp({
-  webRoot: resolve(appDirectory, "build/web"),
+  webRedirect: "http://localhost:3000/",
   appVersion: (process.env.appVersion ?? "2.0.0"),
   dataDirectory,
   toolsRoot: resolve(appDirectory, "build/tools"),
