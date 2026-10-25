@@ -28,6 +28,14 @@ async def on_startup():
     from services.settings_service import ensure_default_settings
     ensure_default_settings()
     resume_video_polling()
+    from api.pippit import startTargetPolling
+    from database import SessionLocal
+    from models.drama import pippitTaskRecord
+    with SessionLocal() as db:
+        for task in db.query(pippitTaskRecord).all():
+            binding = (task.result or {}).get("binding")
+            if binding and not binding.get("bound_url") and task.status not in {"failed", "failure", "error", "canceled", "cancelled", "requires_action", "requires_user_input", "interaction_required"}:
+                startTargetPolling(task.thread_id, task.run_id)
     # 分析任务不会在重启后重复调用付费接口，恢复为可重试状态。
     from database import SessionLocal
     from models.drama import Project
@@ -53,6 +61,8 @@ def resume_video_polling():
             .all()
         )
         for s in stuck:
+            if s.provider_model == "pippit":
+                continue
             asyncio.get_event_loop().create_task(
                 _background_generate(s.id, s.provider_task_id,
                     (s.generation_manifest or {}).get('prompt') or s.prompt or "",

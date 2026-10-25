@@ -30,9 +30,45 @@
       <header class="analysisHeader">
         <button class="analysisBack" type="button" aria-label="返回项目资源" @click="router.push('/home?section=projects')">‹</button>
         <span class="analysisProjectName">{{ analysisProject.name }}</span>
-        <ol class="analysisSteps" aria-label="制作步骤"><li :class="{ active: analysisStep === 1 }">1. 脚本</li><li :class="{ active: analysisStep === 2 }">2. 制作资产库</li><li :class="{ active: analysisStep === 3 }">3. 分镜</li></ol>
+        <ol class="analysisSteps" aria-label="制作步骤"><li :class="{ active: analysisStep === 1 }">1. 脚本</li><li :class="{ active: analysisStep === 2 }"><button type="button" :disabled="analysisProject.analysis_state?.status !== 'done'" @click="productionView = 'assets'">2. 制作资产库</button></li><li :class="{ active: analysisStep === 3 }"><button type="button" :disabled="analysisProject.analysis_state?.status !== 'done'" @click="productionView = 'episodes'; selectedEpisode = null">3. 剧集</button></li></ol>
       </header>
-      <div class="analysisBody">
+      <div v-if="analysisProject.analysis_state?.status === 'done'" class="analysisResults" :class="{ editingEpisode: productionView === 'episodes' && selectedEpisode !== null }">
+        <div class="generationModels"><label>图片模型 <el-select v-model="imageModel" :disabled="assetGenerating" aria-label="图片生成模型"><el-option label="使用设置中的默认图片模型" value="" /><el-option v-for="model in generationModelOptions.image" :key="model.id" :label="model.label" :value="model.id" /></el-select></label><label v-if="productionView === 'episodes'">视频模型 <el-select v-model="videoModel" :disabled="shotBusy" aria-label="视频生成模型"><el-option label="使用设置中的默认视频模型" value="" /><el-option v-for="model in generationModelOptions.video" :key="model.id" :label="model.label" :value="model.id" /></el-select></label><el-button round @click="openPippitCreation">Pippit · 自动创作</el-button><el-button text @click="loadGenerationModels">刷新模型</el-button><p v-if="modelOptionsError" role="alert">{{ modelOptionsError }}</p></div>
+        <p class="generationModelNote">选择 Pippit 后仍使用当前生成按钮，完成后自动保存到当前资产或片段；Pippit 内部模型由服务自动决定。</p>
+        <div v-if="pippitTargetProgress" class="pippitTargetStatus" role="status"><span>{{ pippitTargetProgress }}</span><a v-if="pippitTargetLink" :href="pippitTargetLink" target="_blank" rel="noopener noreferrer">查看 Pippit 任务 ↗</a></div>
+        <template v-if="productionView === 'episodes'">
+          <div class="resultHeading"><div><h1>{{ selectedEpisode === null ? '剧集' : `第 ${selectedEpisode} 集 · 分镜脚本` }}</h1><p>{{ selectedEpisode === null ? `共 ${episodeItems.length} 集 · 分镜来自已保存的分析结果` : `共 ${visibleShotItems.length} 个分镜，选择卡片查看设计和提示词` }}</p></div><el-button round @click="selectedEpisode === null ? productionView = 'assets' : selectedEpisode = null">{{ selectedEpisode === null ? '制作资产库' : '返回剧集' }}</el-button></div>
+          <div v-if="selectedEpisode === null" class="episodeGrid">
+            <button v-for="episode in episodeItems" :key="episode.number" type="button" class="episodeCard" @click="selectedEpisode = episode.number">
+              <div class="episodePreview"><icon-file-text :size="30" :strokeWidth="1" /></div>
+              <div class="episodeContent"><small>分镜脚本已就绪</small><h2>第 {{ episode.number }} 集</h2><p>{{ episode.characters }} 个角色 · {{ episode.scenes }} 个场景 · {{ episode.shots }} 个分镜</p><span class="episodeAction">编辑 · 生成视频 →</span></div>
+            </button>
+          </div>
+          <div v-else class="episodeEditor">
+            <aside class="productionLibrary"><h2>制作资产库</h2><input v-model="assetSearch" type="search" placeholder="搜索资产库" aria-label="搜索资产库" /><section v-for="group in episodeAssetGroups" :key="group.key"><h3>{{ group.label }}</h3><button v-for="asset in group.items" :key="asset.id" type="button" class="libraryAsset" @click="selectedResult = asset"><div><img v-if="asset.image" :src="asset.image" :alt="asset.name" /><icon-file-text v-else :size="20" /></div><span>{{ asset.name }}<small>{{ asset.image ? '参考图已就绪' : '参考图待生成' }}</small></span></button></section></aside>
+            <div v-if="activeEpisodeShot" class="clipScript"><header><h2>片段 {{ String(activeEpisodeShot.shot_no).padStart(2, '0') }}</h2><span>{{ activeEpisodeShot.duration }} 秒 · {{ shotStatusText(activeEpisodeShot) }}</span></header><div class="clipReferences"><button v-for="asset in activeShotAssets" :key="`${asset.kind}-${asset.id}`" type="button" :class="{ missingReference: !asset.image }" @click="selectedResult = asset"><img v-if="asset.image" :src="asset.image" :alt="asset.name" /><span>{{ asset.name }}</span><small v-if="!asset.image">待设置参考图</small></button></div><article class="clipPrompt"><h3>{{ activeEpisodeShot.title }}</h3><p>{{ activeEpisodeShot.scene_name }} · {{ (activeEpisodeShot.character_names || []).join('、') }}</p><textarea v-if="editingShotPrompt" v-model="shotPromptDraft" aria-label="编辑分镜提示词" /><p v-else class="scriptText">{{ activeEpisodeShot.prompt }}</p><details><summary>镜头设计与首帧提示词</summary><p class="scriptText">{{ designText(activeEpisodeShot.direction) }}</p><p class="scriptText">{{ activeEpisodeShot.keyframe_prompt }}</p></details><footer><el-button round :disabled="shotBusy || activeEpisodeShot.video_status === 'processing'" @click="editingShotPrompt ? saveEpisodeShot() : startEditingShot()">{{ editingShotPrompt ? '保存' : '编辑' }}</el-button><el-button v-if="editingShotPrompt" round @click="editingShotPrompt = false">取消</el-button><el-button type="primary" round :loading="shotBusy || activeEpisodeShot.video_status === 'processing'" @click="generateEpisodeShot">生成视频</el-button></footer></article><p v-if="activeEpisodeShot.last_error" class="clipError" role="alert">{{ activeEpisodeShot.last_error }}</p></div>
+            <aside v-if="activeEpisodeShot" class="clipPreview"><video v-if="activeEpisodeShot.video_url" :key="activeEpisodeShot.video_url" :src="activeEpisodeShot.video_url" controls :poster="activeEpisodeShot.keyframe_url || undefined" /><div v-else class="emptyClipPreview"><icon-file-text :size="30" /><p>{{ activeEpisodeShot.video_status === 'processing' ? '视频正在生成…' : '生成的片段将会显示在这里' }}</p></div></aside>
+            <nav class="clipTimeline" aria-label="片段列表"><button v-for="shot in episodeShots" :key="shot.id" type="button" :class="{ active: activeEpisodeShot?.id === shot.id }" @click="selectedShotId = shot.id; editingShotPrompt = false"><div><img v-if="shot.keyframe_url" :src="shot.keyframe_url" alt="" /><icon-file-text v-else :size="20" /></div><span>片段 {{ String(shot.shot_no).padStart(2, '0') }} · {{ shot.duration }}s</span><small>{{ shotStatusText(shot) }}</small></button></nav>
+          </div>
+        </template>
+        <template v-else>
+        <nav class="resultTabs" aria-label="分析结果分类"><button v-for="tab in resultTabs" :key="tab.key" type="button" :class="{ active: resultTab === tab.key }" @click="resultTab = tab.key">{{ tab.label }} <span>{{ resultItemsFor(tab.key).length }}</span></button></nav>
+        <div class="resultHeading"><div><h1>{{ resultTabs.find(tab => tab.key === resultTab)?.label }}</h1><p>分析结果已保存。选择卡片查看描述与生成提示词。</p></div><el-button round @click="analysisDismissed = true">查看画布 ↗</el-button></div>
+        <div v-if="resultTab !== 'shots'" class="assetGenerationBar"><div><strong>{{ selectingAssets ? `已选择 ${selectedAssetIds.length} 项` : '生成制作参考图' }}</strong><p v-if="batchGenerating" role="status">正在生成 {{ batchProgress.completed + 1 }} / {{ batchProgress.total }}：{{ batchProgress.name }}</p><p v-else>{{ batchSummary || '选择需要生成的资产，生成结果会保存到当前项目。' }}</p></div><div class="assetGenerationActions"><template v-if="selectingAssets"><el-button round :disabled="assetGenerating" @click="selectedAssetIds = resultItemsFor(resultTab).map(item => item.id)">全选</el-button><el-button round :disabled="assetGenerating" @click="selectingAssets = false; selectedAssetIds = []">取消</el-button><el-button type="primary" round :loading="batchGenerating" :disabled="!selectedAssetIds.length || assetGenerating && !batchGenerating" @click="generateSelectedImages">生成图片 · {{ selectedAssetIds.length }}</el-button></template><el-button v-else round :disabled="assetGenerating" @click="selectingAssets = true; batchSummary = ''">选择 · 批量生成</el-button></div></div>
+        <div class="resultGrid">
+          <div v-for="item in resultItemsFor(resultTab)" :key="item.id" class="resultCard" :class="{ selectedAsset: selectingAssets && selectedAssetIds.includes(item.id) }">
+            <button type="button" class="assetCardOpen" :aria-pressed="selectingAssets ? selectedAssetIds.includes(item.id) : undefined" @click="selectingAssets ? toggleAssetSelection(item.id) : selectedResult = item">
+            <span v-if="selectingAssets" class="assetSelectionMark">{{ selectedAssetIds.includes(item.id) ? '✓' : '○' }}</span>
+            <div class="resultPreview"><img v-if="item.image" :src="item.image" :alt="item.name" /><icon-file-text v-else :size="38" :strokeWidth="1" /></div>
+            <strong>{{ item.name }}</strong><span class="resultDescription">{{ item.description }}</span><small>{{ item.image ? '已有参考图' : resultTab === 'shots' ? '分镜设计与提示词已就绪' : '文字设定已就绪 · 参考图待生成' }}</small>
+            </button><p v-if="assetImageErrors[`${item.kind}-${item.id}`]" class="assetImageError" role="alert">{{ assetImageErrors[`${item.kind}-${item.id}`] }}</p><el-button v-if="resultTab !== 'shots' && !selectingAssets" class="assetGenerateButton" round size="small" :loading="generatingAssetKey === `${item.kind}-${item.id}`" :disabled="assetGenerating" @click="generateResultImage(item)">{{ item.image ? '重新生成' : '生成图片' }}</el-button>
+          </div>
+        </div>
+        <p v-if="!resultItemsFor(resultTab).length" class="resultEmpty">本次分析没有此类结果。</p>
+        <div class="resultContinue"><el-button round @click="productionView = 'episodes'; selectedEpisode = null">继续 · 查看剧集 →</el-button></div>
+        </template>
+      </div>
+      <div v-else class="analysisBody">
         <h1>分析脚本</h1>
         <div class="analysisStage" :class="{ running: analysisProject.status === 'analyzing' }">
           <div class="analysisStageContent" role="status" aria-live="polite">
@@ -55,6 +91,9 @@
         </div>
       </div>
     </section>
+    <el-dialog :modelValue="!!selectedResult" :title="selectedResult?.name" width="760px" class="analysisResultDialog" @close="selectedResult = null">
+      <template v-if="selectedResult"><img v-if="selectedResult.image" class="assetDetailImage" :src="selectedResult.image" :alt="selectedResult.name" /><p class="resultDetailText">{{ selectedResult.description }}</p><h3>生成提示词</h3><p class="resultDetailText">{{ selectedResult.prompt || '尚未生成专用提示词，可先使用上述文字设定。' }}</p><section v-for="section in resultDesignSections" :key="section.label"><h3>{{ section.label }}</h3><p class="resultDetailText">{{ section.text }}</p></section><el-button v-if="selectedResult.prompt" @click="copyResultPrompt">复制提示词</el-button><el-button v-if="selectedResult.kind && selectedResult.kind !== 'shots'" type="primary" :loading="assetGenerating" @click="generateResultImage()">{{ selectedResult.image ? '重新生成参考图' : '生成参考图' }}</el-button></template>
+    </el-dialog>
     <div class="workspaceTools">
       <el-segmented :modelValue="activePanel" class="panelSwitcher" :options="panelOptions" size="small" aria-label="切换面板" @change="switchPanel">
         <template #default="{ item }">
@@ -64,6 +103,7 @@
           </span>
         </template>
       </el-segmented>
+      <el-button v-if="analysisProject?.analysis_state?.status === 'done'" class="analysisResultsButton" round size="small" @click="analysisDismissed = false">分析结果</el-button>
       <div class="bottomTools">
         <el-card v-if="activePanel === 'canvas'" class="toolMenu" shadow="never" :bodyStyle="{ padding: '3px 6px' }">
           <div class="toolMenuContent" role="toolbar" aria-label="画布工具">
@@ -283,9 +323,263 @@ const analysisDismissed = ref(false);
 const router = useRouter();
 const analysisRefreshError = ref("");
 const analysisCountLabels = { episodes: "分集", characters: "角色", scenes: "场景", props: "道具", shots: "分镜" };
+const resultTabs = [{ key: "characters", label: "角色" }, { key: "scenes", label: "场景" }, { key: "props", label: "道具" }, { key: "shots", label: "分镜" }] as const;
+type ResultTab = typeof resultTabs[number]["key"];
+type AnalysisResultItem = { id: number; name: string; description: string; prompt: string; image?: string; design?: Record<string, unknown>; kind?: ResultTab };
+const resultTab = ref<ResultTab>("characters");
+const productionView = ref<"assets" | "episodes">(route.query.production === "episodes" ? "episodes" : "assets");
+const selectedEpisode = ref<number | null>(Number(route.query.episode) > 0 ? Number(route.query.episode) : null);
+watch([productionView, selectedEpisode], ([view, episode]) => {
+  editingShotPrompt.value = false;
+  void router.replace({ query: { ...route.query, production: view, episode: view === "episodes" && episode !== null ? String(episode) : undefined } });
+});
+watch(() => [route.query.production, route.query.episode], ([view, episode]) => {
+  productionView.value = view === "episodes" ? "episodes" : "assets";
+  selectedEpisode.value = Number(episode) > 0 ? Number(episode) : null;
+});
+const assetGenerating = ref(false);
+const imageModel = ref("");
+const videoModel = ref("");
+const pippitTargetProgress = ref("");
+const pippitTargetLink = ref("");
+const targetGenerationAbort = new AbortController();
+onScopeDispose(() => targetGenerationAbort.abort());
+async function generateWithPippit(projectId: number, kind: string, targetId: number, message: string) {
+  pippitTargetProgress.value = "正在提交 Pippit 生成任务…";
+  pippitTargetLink.value = "";
+  const submit = await fetch(dramaForgeApiUrl("pippit/generate-target"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ project_id: projectId, kind, target_id: targetId, message }), signal: targetGenerationAbort.signal });
+  const task = await submit.json();
+  if (!submit.ok) throw new Error(typeof task.detail === "string" ? task.detail : "Pippit 提交失败");
+  pippitTargetLink.value = task.web_thread_link || "";
+  for (let attempt = 0; attempt < 720; attempt++) {
+    if (targetGenerationAbort.signal.aborted) throw new Error("页面已关闭，任务仍在后台继续");
+    const response = await fetch(dramaForgeApiUrl("pippit/thread"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ thread_id: task.thread_id, run_id: task.run_id }), signal: targetGenerationAbort.signal });
+    const result = await response.json();
+    if (!response.ok) throw new Error(typeof result.detail === "string" ? result.detail : "Pippit 状态读取失败，可重新点击生成以恢复查询");
+    if (result.binding?.bound_url) { pippitTargetProgress.value = "Pippit 生成完成，结果已保存到当前项目"; return; }
+    const status = String(result.status || "").toLowerCase();
+    if (["failed", "failure", "error", "canceled", "cancelled"].includes(status)) throw new Error("Pippit 未完成生成，请查看任务回复");
+    if (["requires_action", "requires_user_input", "interaction_required"].includes(status)) throw new Error("Pippit 需要补充信息，请打开任务链接查看并回复");
+    pippitTargetProgress.value = "Pippit 正在生成，完成后会自动保存到当前资产或片段…";
+    await new Promise(resolve => setTimeout(resolve, 5000));
+  }
+  throw new Error("Pippit 任务仍未完成，可重新点击生成以恢复查询");
+}
+const generationModelOptions = ref<{ image: { id: string; label: string }[]; video: { id: string; label: string }[] }>({ image: [], video: [] });
+const modelOptionsError = ref("");
+async function loadGenerationModels() {
+  try {
+    const [stageResponse, catalogResponse] = await Promise.all([fetch(dramaForgeApiUrl("settings")), axios.get("/api/providers/media/list")]);
+    if (!stageResponse.ok) throw new Error("读取生成配置失败");
+    const stages = await stageResponse.json();
+    const providers = catalogResponse.data.data as { id: string; label: string; models: { id: string; label: string; type: string }[] }[];
+    for (const stage of ["image", "video"] as const) {
+      const config = stages[stage];
+      const provider = providers.find(item => item.id === config?.provider);
+      const models = (provider?.models || []).filter(item => item.type === stage).map(item => ({ id: item.id, label: `${provider?.label || config.provider} · ${item.label || item.id}` }));
+      if (config?.model && !models.some(item => item.id === config.model)) models.unshift({ id: config.model, label: `${provider?.label || config.provider} · ${config.model}` });
+      generationModelOptions.value[stage] = [...models, { id: "pippit", label: "Pippit" }];
+    }
+    modelOptionsError.value = "";
+  } catch (error) { modelOptionsError.value = error instanceof Error ? error.message : "模型列表读取失败"; }
+}
+onMounted(() => { void loadGenerationModels(); });
+function openPippitCreation() { pippitVisible.value = true; }
+const generatingAssetKey = ref("");
+const selectingAssets = ref(false);
+const selectedAssetIds = ref<number[]>([]);
+const assetImageErrors = ref<Record<string, string>>({});
+const batchGenerating = ref(false);
+const batchProgress = ref({ completed: 0, total: 0, name: "" });
+const batchSummary = ref("");
+watch(resultTab, () => { selectingAssets.value = false; selectedAssetIds.value = []; batchSummary.value = ""; });
+function toggleAssetSelection(id: number) {
+  if (assetGenerating.value) return;
+  selectedAssetIds.value = selectedAssetIds.value.includes(id) ? selectedAssetIds.value.filter(value => value !== id) : [...selectedAssetIds.value, id];
+}
+async function requestAssetImage(projectId: number, asset: AnalysisResultItem) {
+  if (!asset.kind || asset.kind === "shots") throw new Error("请选择角色、场景或道具");
+  const key = `${asset.kind}-${asset.id}`;
+  generatingAssetKey.value = key;
+  delete assetImageErrors.value[key];
+  try {
+    if (imageModel.value === "pippit") {
+      await generateWithPippit(projectId, { characters: "character", scenes: "scene", props: "prop" }[asset.kind], asset.id, asset.prompt || asset.description);
+      await refreshDramaForgeProject(String(projectId));
+      if (selectedResult.value?.id === asset.id && selectedResult.value.kind === asset.kind) selectedResult.value = resultItemsFor(asset.kind).find(item => item.id === asset.id) || null;
+      return;
+    }
+    const query = new URLSearchParams();
+    if (asset.image) query.set("regenerate", "true");
+    if (imageModel.value) query.set("model", imageModel.value);
+    const response = await fetch(dramaForgeApiUrl(`projects/${projectId}/${asset.kind}/${asset.id}/generate?${query}`), { method: "POST" });
+    const result = await response.json();
+    if (!response.ok) throw new Error(typeof result.detail === "string" ? result.detail : "参考图生成失败");
+    await refreshDramaForgeProject(String(projectId));
+    if (selectedResult.value?.id === asset.id && selectedResult.value.kind === asset.kind) selectedResult.value = resultItemsFor(asset.kind).find(item => item.id === asset.id) || null;
+  } catch (error) {
+    assetImageErrors.value[key] = error instanceof Error ? error.message : "参考图生成失败";
+    if (imageModel.value === "pippit") pippitTargetProgress.value = assetImageErrors.value[key] || "Pippit 任务暂未完成";
+    throw error;
+  } finally { generatingAssetKey.value = ""; }
+}
+async function generateSelectedImages() {
+  const project = analysisProject.value;
+  const assets = resultItemsFor(resultTab.value).filter(item => selectedAssetIds.value.includes(item.id));
+  if (!project || !assets.length || assetGenerating.value) return;
+  try { await ElMessageBox.confirm(`将生成 ${assets.length} 张参考图，已有图片的选中资产将重新生成。${imageModel.value === "pippit" ? '使用 Pippit，可能消耗积分，API 无法预估费用。' : '使用所选图片模型，可能消耗额度。'}是否继续？`, "批量生成图片", { confirmButtonText: "开始生成", cancelButtonText: "取消" }); } catch { return; }
+  assetGenerating.value = true;
+  batchGenerating.value = true;
+  batchProgress.value = { completed: 0, total: assets.length, name: "" };
+  let succeeded = 0;
+  try {
+    for (const asset of assets) {
+      batchProgress.value.name = asset.name;
+      try { await requestAssetImage(project.id, asset); succeeded++; } catch { /* 每项失败原因保留在资产卡片，继续已确认的队列。 */ }
+      batchProgress.value.completed++;
+    }
+    batchSummary.value = `生成结束：成功 ${succeeded} 张，失败 ${assets.length - succeeded} 张。`;
+    if (succeeded === assets.length) { selectingAssets.value = false; selectedAssetIds.value = []; ElMessage.success(batchSummary.value); }
+    else ElMessage.warning(batchSummary.value);
+  } finally { assetGenerating.value = false; batchGenerating.value = false; }
+}
+async function generateResultImage(item?: AnalysisResultItem) {
+  const asset = item?.kind ? item : selectedResult.value;
+  const project = analysisProject.value;
+  if (!asset?.kind || asset.kind === "shots" || !project || assetGenerating.value) return;
+  try { await ElMessageBox.confirm(`将生成“${asset.name}”参考图。${imageModel.value === "pippit" ? '使用 Pippit，可能消耗积分，API 无法预估费用。' : '使用所选图片模型，可能消耗额度。'}是否继续？`, "生成参考图", { confirmButtonText: "提交生成", cancelButtonText: "取消" }); } catch { return; }
+  assetGenerating.value = true;
+  try {
+    await requestAssetImage(project.id, asset);
+    ElMessage.success("参考图已保存");
+  } catch (error) { ElMessage.error(error instanceof Error ? error.message : "参考图生成失败"); }
+  finally { assetGenerating.value = false; }
+}
+const selectedShotId = ref<number | null>(null);
+const assetSearch = ref("");
+const editingShotPrompt = ref(false);
+const shotPromptDraft = ref("");
+const shotBusy = ref(false);
+const episodeShots = computed(() => ((analysisProject.value?.shots || []) as Record<string, any>[]).filter(shot => Number(shot.episode_no) === selectedEpisode.value).sort((a, b) => a.shot_no - b.shot_no));
+const activeEpisodeShot = computed(() => episodeShots.value.find(shot => shot.id === selectedShotId.value) || episodeShots.value[0]);
+const episodeAssetGroups = computed(() => {
+  const characters = new Set(episodeShots.value.flatMap(shot => shot.character_names || []));
+  const scenes = new Set(episodeShots.value.map(shot => shot.scene_name));
+  return resultTabs.filter(tab => tab.key !== "shots").map(tab => ({ key: tab.key, label: tab.label, items: resultItemsFor(tab.key).filter(item => (tab.key === "characters" ? characters.has(item.name) : tab.key === "scenes" ? scenes.has(item.name) : true) && item.name.includes(assetSearch.value.trim())) }));
+});
+const activeShotAssets = computed(() => {
+  const shot = activeEpisodeShot.value;
+  if (!shot) return [];
+  return resultTabs.filter(tab => tab.key === "characters" || tab.key === "scenes").flatMap(tab => resultItemsFor(tab.key).filter(item => tab.key === "characters" ? (shot.character_names || []).includes(item.name) : shot.scene_name === item.name).map(item => ({ ...item, kind: tab.key })));
+});
+function shotStatusText(shot: Record<string, any>): string {
+  if (shot.video_status === "processing") return "视频生成中";
+  if (shot.video_status === "failed") return "视频生成失败";
+  if (shot.video_url) return "视频已生成";
+  return shot.keyframe_url ? "首帧已就绪 · 视频待生成" : "分镜已就绪 · 视频待生成";
+}
+function startEditingShot() {
+  shotPromptDraft.value = activeEpisodeShot.value?.prompt || "";
+  editingShotPrompt.value = true;
+}
+async function saveEpisodeShot() {
+  const shot = activeEpisodeShot.value;
+  if (!shot || !analysisProject.value || shotBusy.value) return;
+  if (!shotPromptDraft.value.trim()) { ElMessage.error("分镜提示词不能为空"); return; }
+  if (shot.video_url) {
+    try { await ElMessageBox.confirm("保存修改将清除当前分镜的视频关联，需要重新生成。是否继续？", "保存分镜", { type: "warning" }); } catch { return; }
+  }
+  shotBusy.value = true;
+  try {
+    const response = await fetch(dramaForgeApiUrl(`projects/${analysisProject.value.id}/shots/${shot.id}`), { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ prompt: shotPromptDraft.value }) });
+    const result = await response.json();
+    if (!response.ok) throw new Error(typeof result.detail === "string" ? result.detail : "保存失败");
+    editingShotPrompt.value = false;
+    await refreshDramaForgeProject(String(analysisProject.value.id));
+    ElMessage.success("分镜已保存");
+  } catch (error) { ElMessage.error(error instanceof Error ? error.message : "保存失败"); }
+  finally { shotBusy.value = false; }
+}
+async function generateEpisodeShot() {
+  const shot = activeEpisodeShot.value;
+  const project = analysisProject.value;
+  if (!shot || !project || shotBusy.value || shot.video_status === "processing") return;
+  if (editingShotPrompt.value) { ElMessage.warning("请先保存或取消编辑"); return; }
+  const missing = activeShotAssets.value.filter(asset => !asset.image);
+  const mode = shot.generation_settings?.mode || (project.generation_settings as Record<string, unknown> | undefined)?.mode || "auto";
+  if ((mode === "auto" || mode === "reference") && missing.length) {
+    ElMessage.warning(`请先生成参考图：${missing.map(asset => asset.name).join("、")}`);
+    selectedResult.value = missing[0] || null;
+    return;
+  }
+  try { await ElMessageBox.confirm(videoModel.value === "pippit" ? "将使用 Pippit 生成当前片段，并上传当前片段的本地参考图。可能消耗积分，API 无法预估费用。是否提交？" : "将使用所选视频模型生成当前片段，可能消耗额度。是否提交？", "生成片段", { confirmButtonText: "提交生成", cancelButtonText: "取消" }); } catch { return; }
+  shotBusy.value = true;
+  try {
+    if (videoModel.value === "pippit") {
+      await generateWithPippit(project.id, "video", shot.id, shot.prompt);
+      await refreshDramaForgeProject(String(project.id));
+      ElMessage.success("Pippit 视频已保存到当前片段");
+      return;
+    }
+    const query = new URLSearchParams();
+    if (videoModel.value) query.set("model", videoModel.value);
+    const response = await fetch(dramaForgeApiUrl(`projects/${project.id}/shots/${shot.id}/generate?${query}`), { method: "POST" });
+    const result = await response.json();
+    if (!response.ok) throw new Error(typeof result.detail === "string" ? result.detail : "视频提交失败");
+    await refreshDramaForgeProject(String(project.id));
+    ElMessage.success("视频任务已提交");
+  } catch (error) { ElMessage.error(error instanceof Error ? error.message : "视频提交失败"); }
+  finally { shotBusy.value = false; }
+}
+const episodeItems = computed(() => {
+  const groups = new Map<number, { number: number; shots: number; characters: Set<string>; scenes: Set<string> }>();
+  for (const shot of (analysisProject.value?.shots || []) as Record<string, any>[]) {
+    const number = Number(shot.episode_no) || 1;
+    const group = groups.get(number) || { number, shots: 0, characters: new Set<string>(), scenes: new Set<string>() };
+    group.shots++;
+    for (const name of shot.character_names || []) if (name) group.characters.add(name);
+    if (shot.scene_name) group.scenes.add(shot.scene_name);
+    groups.set(number, group);
+  }
+  return [...groups.values()].sort((a, b) => a.number - b.number).map(group => ({ number: group.number, shots: group.shots, characters: group.characters.size, scenes: group.scenes.size }));
+});
+const visibleShotItems = computed(() => {
+  const ids = new Set(((analysisProject.value?.shots || []) as Record<string, any>[]).filter(shot => Number(shot.episode_no) === selectedEpisode.value).map(shot => shot.id));
+  return resultItemsFor("shots").filter(item => ids.has(item.id));
+});
+const selectedResult = ref<AnalysisResultItem | null>(null);
+const designLabels: Record<string, string> = { identity: "人物身份", wardrobe: "服装与配饰", views: "多视图", front: "正面", side: "侧面", back: "背面", three_quarter: "四分之三侧面", turnaround_prompt: "四视图提示词", expressions: "表情设计", expression_sheet_prompt: "表情参考图提示词", negative_prompt: "避免内容", director_notes: "导演说明", geography: "空间布局", lighting: "灯光", palette: "色彩", atmosphere: "氛围", continuity: "连续性", reference_prompt: "场景参考图提示词", shot_size: "景别", camera_height: "机位高度", camera_angle: "机位角度", lens: "镜头焦段", camera_movement: "运镜", composition: "构图", blocking: "人物调度", performance: "表演", timeline: "动作时间线", sound: "声音", name: "名称", prompt: "提示词" };
+function designText(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (Array.isArray(value)) return value.map(designText).filter(Boolean).join("\n\n");
+  if (value && typeof value === "object") return Object.entries(value).map(([key, item]) => { const text = designText(item); return text ? `${designLabels[key] || key}：${text}` : ""; }).filter(Boolean).join("\n\n");
+  return value == null ? "" : String(value);
+}
+const resultDesignSections = computed(() => Object.entries(selectedResult.value?.design || {}).map(([key, value]) => ({ label: designLabels[key] || key, text: designText(value) })).filter(item => item.text));
+function resultItemsFor(key: ResultTab): AnalysisResultItem[] {
+  const items = analysisProject.value?.[key];
+  if (!Array.isArray(items)) return [];
+  return items.map(item => {
+    const design = item.design || item.direction || {};
+    return {
+      id: item.id,
+      kind: key,
+      name: key === "shots" ? `第 ${item.episode_no} 集 · 镜头 ${item.shot_no} · ${item.title || ""}` : item.name,
+      description: key === "shots" ? `${item.duration} 秒 · ${item.scene_name || "未设置场景"} · ${(item.character_names || []).join("、")}` : item.description || "",
+      prompt: key === "shots" ? [item.keyframe_prompt && `首帧提示词：\n${item.keyframe_prompt}`, item.prompt && `视频提示词：\n${item.prompt}`].filter(Boolean).join("\n\n") : design.turnaround_prompt || design.reference_prompt || design.prompt || item.description || "",
+      image: item.base_image_url || item.image_url || item.keyframe_url,
+      design,
+    };
+  });
+}
+async function copyResultPrompt() {
+  if (!selectedResult.value?.prompt) return;
+  try { await navigator.clipboard.writeText(selectedResult.value.prompt); ElMessage.success("提示词已复制"); }
+  catch { ElMessage.error("复制失败，请手动选取提示词复制"); }
+}
 const analysisStep = computed(() => {
   const state = analysisProject.value?.analysis_state;
-  if (state?.status === "done") return 3;
+  if (state?.status === "done") return productionView.value === "episodes" ? 3 : 2;
   if (!state?.counts) return 1;
   const assetBatches = Math.max(state.counts.characters ?? 0, state.counts.scenes ?? 0);
   return state.total && (state.completed ?? 0) >= assetBatches ? 3 : 2;
@@ -363,7 +657,7 @@ async function refreshDramaForgeProject(projectId: string) {
     analysisRefreshError.value = "";
     (window as DramaForgeWindow).__DRAMAFORGE_PROJECT__ = project;
     window.dispatchEvent(new CustomEvent("dramaforge:project-update", { detail: project }));
-    if (project.status === "analyzing") dramaForgeRefreshTimer = setTimeout(() => void refreshDramaForgeProject(projectId), 5000);
+    if (project.status === "analyzing" || (project.shots as Record<string, any>[] | undefined)?.some(shot => shot.video_status === "processing")) dramaForgeRefreshTimer = setTimeout(() => void refreshDramaForgeProject(projectId), 5000);
   } catch (error) {
     console.error("DramaForge 项目刷新失败：", error);
     analysisRefreshError.value = error instanceof Error ? error.message : "项目分析状态刷新失败";
@@ -536,6 +830,7 @@ function saveDocumentNode(directory: string, canvasPath: string, nodeId: string,
 </script>
 
 <style scoped lang="scss">
+.assetDetailImage { display: block; max-width: 100%; max-height: 360px; object-fit: contain; margin: 0 auto 20px; border-radius: 16px; }
 .workspacePage {
   position: relative;
   width: 100%;
@@ -550,7 +845,49 @@ function saveDocumentNode(directory: string, canvasPath: string, nodeId: string,
     color: var(--el-text-color-primary);
     background: var(--el-bg-color-page);
 
+    .analysisResults {
+      width: min(1200px, calc(100% - 64px)); margin: 36px auto 64px;
+      .pippitTargetStatus { display: flex; flex-wrap: wrap; gap: 16px; padding: 14px 18px; margin: 12px 0; border-radius: 16px; background: var(--el-fill-color-light); font-size: 13px; a { color: var(--el-color-primary); } }
+      .generationModels { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 8px; label { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--el-text-color-secondary); } .el-select { width: 240px; } p { color: var(--el-color-danger); font-size: 12px; } }
+      .generationModelNote { font-size: 12px; color: var(--el-text-color-secondary); margin-bottom: 22px; }
+      .assetGenerationBar { display: flex; align-items: center; justify-content: space-between; gap: 18px; background: var(--el-bg-color); border-radius: 20px; padding: 20px; margin-bottom: 18px; strong { font-size: 14px; font-weight: 500; } p { font-size: 12px; color: var(--el-text-color-secondary); margin: 8px 0 0; } }
+      .assetGenerationActions { display: flex; flex-shrink: 0; gap: 8px; .el-button + .el-button { margin-left: 0; } }
+      .assetCardOpen { display: block; position: relative; width: 100%; padding: 0; background: none; color: inherit; border: 0; text-align: left; cursor: pointer; }
+      .resultCard.selectedAsset { border-color: var(--el-color-primary); box-shadow: 0 0 0 1px var(--el-color-primary); }
+      .assetSelectionMark { position: absolute; right: 10px; top: 10px; display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; color: var(--el-color-primary); background: var(--el-bg-color); z-index: 1; }
+      .assetGenerateButton { margin: 14px 8px 0; }
+      .assetImageError { color: var(--el-color-danger); font-size: 12px; margin: 12px 8px; overflow-wrap: anywhere; }
+      @media (max-width: 680px) { .assetGenerationBar { align-items: flex-start; flex-direction: column; } .assetGenerationActions { flex-wrap: wrap; } }
+      &.editingEpisode { width: calc(100% - 24px); margin: 16px auto; .resultHeading { margin: 12px 12px 20px; h1 { font-size: 18px; } } }
+      .episodeEditor { display: grid; grid-template-columns: 260px minmax(0, 1fr) 300px; grid-template-rows: minmax(440px, 1fr) auto; gap: 8px; min-height: calc(100vh - 210px); }
+      .productionLibrary, .clipScript, .clipPreview, .clipTimeline { border: 1px solid var(--el-border-color-lighter); border-radius: 24px; background: var(--el-bg-color); }
+      .productionLibrary { grid-row: 1 / 3; padding: 20px 16px; max-height: calc(100vh - 210px); overflow: auto; h2 { font-size: 14px; font-weight: 500; margin: 0 0 20px; } input { box-sizing: border-box; width: 100%; border-radius: 20px; padding: 8px 12px; border: 1px solid var(--el-border-color-lighter); background: var(--el-fill-color-light); color: inherit; } h3 { font-size: 12px; font-weight: 500; margin: 24px 0 10px; } }
+      .libraryAsset { display: flex; align-items: center; width: 100%; gap: 10px; margin: 8px 0; padding: 6px; border: 0; background: none; color: inherit; text-align: left; cursor: pointer; border-radius: 10px; &:hover { background: var(--el-fill-color-light); } > div { display: grid; place-items: center; flex-shrink: 0; width: 38px; height: 42px; border-radius: 8px; background: var(--el-fill-color-light); color: var(--el-text-color-placeholder); overflow: hidden; } img { width: 100%; height: 100%; object-fit: cover; } span { min-width: 0; font-size: 12px; overflow-wrap: anywhere; } small { display: block; margin-top: 4px; color: var(--el-text-color-secondary); font-size: 10px; } }
+      .clipScript { min-width: 0; padding: 24px; header { display: flex; align-items: center; gap: 20px; h2 { font-size: 21px; margin: 4px 0 20px; font-weight: 500; } span { font-size: 12px; color: var(--el-text-color-secondary); } } }
+      .clipReferences { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; button { display: flex; align-items: center; gap: 5px; border: 1px solid var(--el-border-color-lighter); border-radius: 9px; padding: 7px 9px; background: var(--el-fill-color-light); color: inherit; cursor: pointer; font-size: 11px; } img { width: 28px; height: 28px; object-fit: cover; border-radius: 5px; } small { font-size: 10px; color: var(--el-color-warning); } }
+      .clipPrompt { background: var(--el-fill-color-light); border-radius: 24px; padding: 20px; min-height: 320px; h3 { font-size: 15px; font-weight: 500; margin: 0 0 12px; } > p { font-size: 12px; color: var(--el-text-color-secondary); } .scriptText { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14px; line-height: 1.95; color: var(--el-text-color-primary); } details { margin-top: 24px; summary { font-size: 12px; cursor: pointer; color: var(--el-text-color-secondary); } } textarea { box-sizing: border-box; width: 100%; min-height: 250px; border: 1px solid var(--el-border-color); border-radius: 12px; padding: 14px; background: var(--el-bg-color); color: inherit; font: inherit; line-height: 1.8; resize: vertical; } footer { display: flex; justify-content: flex-end; margin-top: 24px; } }
+      .clipError { color: var(--el-color-danger); font-size: 12px; }
+      .clipPreview { display: grid; place-items: center; padding: 24px; video, .emptyClipPreview { width: 100%; aspect-ratio: 9 / 16; border-radius: 24px; background: var(--el-fill-color-blank); object-fit: contain; } .emptyClipPreview { display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--el-text-color-placeholder); p { font-size: 12px; text-align: center; padding: 12px; } } }
+      .clipTimeline { grid-column: 2 / 4; display: flex; gap: 10px; padding: 18px; overflow-x: auto; button { flex-shrink: 0; border: 0; background: none; color: var(--el-text-color-secondary); width: 122px; cursor: pointer; padding: 0; > div { height: 72px; border: 1px solid transparent; border-radius: 12px; background: var(--el-fill-color-light); display: grid; place-items: center; overflow: hidden; } &.active > div { border-color: var(--el-text-color-primary); } img { width: 100%; height: 100%; object-fit: cover; } span, small { display: block; margin-top: 7px; font-size: 11px; } small { font-size: 10px; } } }
+      @media (max-width: 1100px) { .episodeEditor { grid-template-columns: 200px minmax(0, 1fr); } .clipPreview { grid-column: 2; grid-row: 2; video, .emptyClipPreview { max-width: 240px; } } .clipTimeline { grid-column: 1 / 3; } }
+      @media (max-width: 680px) { .episodeEditor { display: flex; flex-direction: column; } .productionLibrary { max-height: 240px; } .clipScript { padding: 14px; } }
+      .episodeGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+      .episodeCard { display: flex; align-items: center; gap: 28px; min-width: 0; padding: 9px; border: 1px solid var(--el-border-color-lighter); border-radius: 22px; background: var(--el-bg-color); color: inherit; text-align: left; cursor: pointer; &:hover { border-color: var(--el-color-primary); } }
+      .episodePreview { display: grid; place-items: center; width: 104px; height: 138px; flex-shrink: 0; border-radius: 13px; background: var(--el-fill-color-light); color: var(--el-text-color-placeholder); }
+      .episodeContent { min-width: 0; small { font-size: 11px; color: var(--el-text-color-secondary); background: var(--el-fill-color-light); border-radius: 12px; padding: 3px 9px; } h2 { font-size: 15px; font-weight: 500; margin: 14px 0 8px; } p { font-size: 12px; color: var(--el-text-color-secondary); } }
+      .episodeAction { display: inline-block; padding: 8px 14px; border-radius: 20px; background: var(--el-fill-color-light); font-size: 12px; }
+      .resultContinue { display: flex; justify-content: flex-end; margin-top: 28px; }
+      @media (max-width: 680px) { .episodeGrid { grid-template-columns: 1fr; } }
+      .resultTabs { display: flex; gap: 28px; border-bottom: 1px solid var(--el-border-color-lighter); button { border: 0; border-bottom: 2px solid transparent; padding: 12px 4px; color: var(--el-text-color-secondary); background: none; cursor: pointer; &.active { border-color: var(--el-text-color-primary); color: var(--el-text-color-primary); } span { font-size: 11px; margin-left: 6px; } } }
+      .resultHeading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 28px 0 22px; h1 { font-size: 20px; font-weight: 500; margin: 0 0 8px; } p { font-size: 13px; color: var(--el-text-color-secondary); margin: 0; } }
+      .resultGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 18px; }
+      .resultCard { min-width: 0; border: 1px solid var(--el-border-color-lighter); border-radius: 22px; background: var(--el-bg-color); color: inherit; padding: 8px 8px 16px; text-align: left; cursor: pointer; transition: border-color .2s; &:hover { border-color: var(--el-color-primary); } .resultPreview { display: grid; place-items: center; aspect-ratio: 1; border-radius: 16px; background: var(--el-fill-color-light); color: var(--el-text-color-placeholder); overflow: hidden; img { width: 100%; height: 100%; object-fit: contain; } } strong { display: block; font-size: 14px; font-weight: 500; margin: 14px 8px 8px; } .resultDescription { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; margin: 0 8px; font-size: 12px; line-height: 1.7; color: var(--el-text-color-secondary); } small { display: block; font-size: 11px; color: var(--el-text-color-secondary); margin: 12px 8px 0; } }
+      .resultEmpty { color: var(--el-text-color-secondary); margin-top: 40px; text-align: center; }
+      @media (max-width: 680px) { width: calc(100% - 32px); .resultTabs { gap: 18px; } .resultGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; } .resultHeading { align-items: flex-start; } }
+    }
+
     .analysisHeader {
+      .analysisSteps button { border: 0; padding: 0; color: inherit; background: transparent; font: inherit; cursor: pointer; &:disabled { cursor: default; } }
       display: flex; align-items: center; gap: 16px; min-height: 72px;
       padding: 12px 32px; background: var(--el-bg-color);
       .analysisBack { width: 34px; height: 34px; border: 0; border-radius: 50%; background: var(--el-fill-color-light); color: inherit; font-size: 26px; cursor: pointer; }
@@ -590,6 +927,8 @@ function saveDocumentNode(directory: string, canvasPath: string, nodeId: string,
 
   @keyframes analysisGlow { to { box-shadow: 0 0 44px 6px #9c81e72b, inset 0 0 46px #9c81e714; } }
   @keyframes analysisPulse { 0%, 100% { transform: scaleY(.45); opacity: .4; } 50% { transform: scaleY(1); opacity: 1; } }
+  .resultDetailText { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.8; font-size: 14px; }
+  .analysisResultsButton { margin-top: 8px; }
 
   .canvasPanel {
     position: absolute;

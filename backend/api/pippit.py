@@ -78,6 +78,183 @@ class ThreadRequest(BaseModel):
     after_seq: int = Field(default=0, ge=0)
 
 
+class TargetRequest(BaseModel):
+    project_id: int = Field(gt=0)
+    kind: str = Field(pattern="^(character|scene|prop|video)$")
+    target_id: int = Field(gt=0)
+    message: str = Field(min_length=1, max_length=100000)
+
+
+def targetAsset(db, binding):
+    from models.drama import Character, Scene, Prop
+    model = {"character": Character, "scene": Scene, "prop": Prop, "video": Shot}[binding["kind"]]
+    asset = db.query(model).filter_by(id=binding["target_id"], project_id=binding["project_id"]).first()
+    if not asset:
+        raise HTTPException(404, "生成目标已不存在")
+    return asset
+
+
+targetSubmitLocks = {}
+
+
+@router.post("/generate-target")
+async def generateTarget(body: TargetRequest, db: Session = Depends(get_db)):
+    key = (body.project_id, body.kind, body.target_id)
+    async with targetSubmitLocks.setdefault(key, asyncio.Lock()):
+        for task in db.query(pippitTaskRecord).filter_by(project_id=body.project_id).all():
+            binding = (task.result or {}).get("binding", {})
+            if binding.get("kind") == body.kind and binding.get("target_id") == body.target_id and not binding.get("bound_url") and task.status not in {"failed", "failure", "error", "canceled", "cancelled", "requires_action", "requires_user_input", "interaction_required"}:
+                startTargetPolling(task.thread_id, task.run_id)
+                return {"thread_id": task.thread_id, "run_id": task.run_id, "web_thread_link": task.web_thread_link, "resumed": True}
+        return await submitTarget(body, db)
+
+
+async def submitTarget(body: TargetRequest, db: Session):
+    from services.director_design import ensure_project_idle
+    ensure_project_idle(body.project_id, db)
+    binding = body.model_dump(exclude={"message"})
+    asset = targetAsset(db, binding)
+    if body.kind != "video":
+        binding["previous_url"] = asset.base_image_url if body.kind == "character" else asset.image_url
+    if body.kind == "video" and asset.video_status == "processing":
+        raise HTTPException(409, "当前片段正在生成")
+    skillDir = _ensure_skill()
+    references = []
+    if body.kind == "video":
+        from models.drama import Character, Scene
+        references = [c.base_image_url for c in db.query(Character).filter_by(project_id=body.project_id).all() if c.name in (asset.character_names or []) and c.base_image_url]
+        references += [s.image_url for s in db.query(Scene).filter_by(project_id=body.project_id).all() if s.name == asset.scene_name and s.image_url]
+        if asset.keyframe_url:
+            references = [asset.keyframe_url]
+    assetIds = []
+    for url in dict.fromkeys(references):
+        if not url.startswith("/storage/"):
+            raise HTTPException(400, "请先将参考图保存到本地项目")
+        path = (STORAGE_DIR / url.removeprefix("/storage/")).resolve()
+        if not path.is_relative_to(STORAGE_DIR.resolve()) or not path.is_file():
+            raise HTTPException(400, "参考图文件不存在")
+        uploaded = await _run_skill(skillDir / "scripts" / "nest" / "upload_file.py", str(path), timeout=180)
+        if not uploaded.get("asset_id"):
+            raise HTTPException(502, "Pippit 未返回参考素材编号")
+        assetIds.append(str(uploaded["asset_id"]))
+    result = await submit_run(SubmitRequest(message=body.message, asset_ids=assetIds), db)
+    task = db.query(pippitTaskRecord).filter_by(run_id=result["run_id"]).one()
+    task.project_id = body.project_id
+    task.result = {"binding": binding}
+    if body.kind == "video":
+        asset.video_status = "processing"
+        asset.provider_model = "pippit"
+        asset.provider_task_id = result["run_id"]
+        asset.last_error = ""
+    db.commit()
+    startTargetPolling(task.thread_id, task.run_id)
+    return result
+
+
+targetPolling = {}
+
+
+def startTargetPolling(threadId, runId):
+    if runId not in targetPolling or targetPolling[runId].done():
+        targetPolling[runId] = asyncio.create_task(pollTarget(threadId, runId))
+
+
+async def pollTarget(threadId, runId):
+    from database import SessionLocal
+    for _ in range(720):
+        with SessionLocal() as db:
+            try:
+                result = await get_thread(ThreadRequest(thread_id=threadId, run_id=runId), db)
+                status = str(result.get("status", "")).lower()
+                if status in {"completed", "complete", "succeeded", "success", "done", "failed", "failure", "error", "canceled", "cancelled", "requires_action", "requires_user_input", "interaction_required"}:
+                    return
+            except HTTPException as exc:
+                db.rollback()
+                task = db.query(pippitTaskRecord).filter_by(run_id=runId).first()
+                if task:
+                    task.result = {**(task.result or {}), "binding_error": str(exc.detail)}
+                    if exc.status_code in {400, 404, 409}:
+                        task.status = "failed"
+                        binding = (task.result or {}).get("binding", {})
+                        if binding.get("kind") == "video":
+                            asset = db.query(Shot).filter_by(id=binding["target_id"], project_id=binding["project_id"]).first()
+                            if asset and asset.provider_task_id == runId:
+                                asset.video_status = "failed"
+                                asset.last_error = str(exc.detail)
+                    db.commit()
+                if exc.status_code in {400, 404, 409}:
+                    return
+        await asyncio.sleep(5)
+
+
+async def bindTargetResult(task, result, db):
+    binding = (task.result or {}).get("binding")
+    if not binding or binding.get("bound_url"):
+        return binding
+    status = str(result.get("status", "")).lower()
+    if status not in {"completed", "complete", "succeeded", "success", "done"}:
+        if status in {"failed", "failure", "error", "canceled", "cancelled", "requires_action", "requires_user_input", "interaction_required"} and binding["kind"] == "video":
+            asset = targetAsset(db, binding)
+            asset.video_status = "failed"
+            asset.last_error = "Pippit 任务需要补充信息或未完成，请查看 Pippit 任务回复"
+        return binding
+    urls = []
+    for item in result.get("generated_assets", []):
+        if item.get("role") != "assistant":
+            continue
+        url = item.get("download_url") or item.get("url")
+        if not isinstance(url, str):
+            continue
+        parsed = urlparse(url)
+        host = parsed.hostname or ""
+        if parsed.scheme != "https" or not any(host == d or host.endswith("." + d) for d in ("pippit.ai", "capcut.com", "tiktokcdn.com", "byteoversea.com")):
+            continue
+        suffix = Path(parsed.path).suffix.lower()
+        mime = str(item.get("mime") or item.get("format") or "").lower()
+        mediaType = " ".join(str(item.get(key, "")) for key in ("type", "sub_type", "path")).lower()
+        video = mime.startswith("video") or mime in {"mp4", "mov", "webm"} or suffix in {".mp4", ".mov", ".webm"} or "video" in mediaType
+        if video == (binding["kind"] == "video"):
+            urls.append(url)
+    if not urls:
+        raise HTTPException(409, "Pippit 未返回所需类型的生成素材，请查看任务回复")
+    outputDir = STORAGE_DIR / "projects" / str(binding["project_id"]) / "pippit" / hashlib.sha256(task.run_id.encode()).hexdigest()[:24]
+    downloaded = await _run_skill(_ensure_skill() / "scripts" / "nest" / "download_results.py", "--urls", urls[0], "--output-dir", str(outputDir), "--prefix", "result", timeout=660)
+    files = downloaded.get("downloaded", [])
+    if downloaded.get("errors") or not files:
+        raise HTTPException(502, "Pippit 素材保存失败，可刷新重试，不会重新生成")
+    path = Path(files[0]).resolve()
+    if not path.is_relative_to(outputDir.resolve()) or not path.is_file():
+        raise HTTPException(502, "Pippit 返回文件路径无效")
+    video = binding["kind"] == "video"
+    if path.suffix.lower() not in ({".mp4", ".mov", ".webm"} if video else {".png", ".jpg", ".jpeg", ".webp"}):
+        raise HTTPException(502, "Pippit 返回的文件类型不匹配")
+    url = "/storage/" + path.relative_to(STORAGE_DIR.resolve()).as_posix()
+    asset = targetAsset(db, binding)
+    if video:
+        if asset.provider_task_id != task.run_id:
+            raise HTTPException(409, "该片段已有更新的生成任务，旧结果不覆盖当前片段")
+        asset.video_url = url
+        asset.video_status = "done"
+        asset.last_error = ""
+        asset.history = [*(asset.history or []), {"video_url": url, "provider_task_id": task.run_id, "model": "pippit"}]
+    else:
+        from services.image_service import _store_image_prompt
+        from models.drama import ImageSource
+        currentUrl = asset.base_image_url if binding["kind"] == "character" else asset.image_url
+        if currentUrl != binding.get("previous_url", currentUrl):
+            raise HTTPException(409, "该资产已有更新的图片，Pippit 旧任务结果保留在项目文件夹，不覆盖当前图片")
+        if binding["kind"] == "character":
+            asset.extra_images = list(dict.fromkeys([*(asset.extra_images or []), *([asset.base_image_url] if asset.base_image_url else []), url]))[-20:]
+            asset.base_image_url = url
+        else:
+            if binding["kind"] == "scene":
+                asset.image_versions = list(dict.fromkeys([*(asset.image_versions or []), *([asset.image_url] if asset.image_url else []), url]))[-20:]
+            asset.image_url = url
+        _store_image_prompt(db, url, task.message, "pippit")
+        db.query(ImageSource).filter_by(local_url=url).one().remote_url = urls[0]
+    return {**binding, "bound_url": url}
+
+
 @router.get("/status")
 async def get_pippit_status():
     """Check API connectivity without returning linked account details or secrets."""
@@ -171,9 +348,21 @@ async def get_thread(body: ThreadRequest, db: Session = Depends(get_db)):
 
     task = db.query(pippitTaskRecord).filter_by(run_id=body.run_id).first()
     if task and task.thread_id == body.thread_id and body.after_seq == 0:
-        task.result = result
-        task.status = result.get("status", "unknown")
-        db.commit()
+        if (task.result or {}).get("binding"):
+            lock = importLocks.setdefault(body.run_id, asyncio.Lock())
+            async with lock:
+                db.refresh(task)
+                binding = await bindTargetResult(task, result, db)
+                task.result = {**result, "binding": binding}
+                task.status = result.get("status", "unknown")
+                db.commit()
+        else:
+            binding = None
+            task.result = result
+            task.status = result.get("status", "unknown")
+            db.commit()
+        if binding:
+            result["binding"] = binding
     return result
 
 
