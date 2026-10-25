@@ -27,17 +27,18 @@
     </keep-alive>
     <workspaceMenu class="workspaceMenu" />
     <section v-if="analysisProject && !analysisDismissed && (analysisProject.status === 'analyzing' || analysisProject.analysis_state?.status === 'failed' || analysisProject.analysis_state?.status === 'done')" class="analysisStatus" aria-label="剧本分析进度">
-      <header class="analysisHeader">
-        <button class="analysisBack" type="button" aria-label="返回项目资源" @click="router.push('/home?section=projects')">‹</button>
-        <span class="analysisProjectName">{{ analysisProject.name }}</span>
-        <ol class="analysisSteps" aria-label="制作步骤"><li :class="{ active: analysisStep === 1 }">1. 脚本</li><li :class="{ active: analysisStep === 2 }"><button type="button" :disabled="analysisProject.analysis_state?.status !== 'done'" @click="productionView = 'assets'">2. 制作资产库</button></li><li :class="{ active: analysisStep === 3 }"><button type="button" :disabled="analysisProject.analysis_state?.status !== 'done'" @click="productionView = 'episodes'; selectedEpisode = null">3. 剧集</button></li></ol>
+      <header class="analysisHeader" :class="{ episodeHeader: isEpisodeEditor }">
+        <button class="analysisBack" type="button" :aria-label="isEpisodeEditor ? '返回剧集' : '返回项目资源'" @click="isEpisodeEditor ? selectedEpisode = null : router.push('/home?section=projects')">‹</button>
+        <span class="analysisProjectName">{{ isEpisodeEditor ? `第 ${selectedEpisode} 集 · ${analysisProject.name}` : analysisProject.name }}</span>
+        <template v-if="isEpisodeEditor"><span class="episodeSaved">● {{ editingShotPrompt ? '未保存' : generationSettingsBusy || shotBusy ? '正在处理' : '已保存' }}</span><div class="episodeHeaderTools"><generationModelMenu v-model="videoModel" :options="generationModelOptions.video" :defaultLabel="defaultVideoModelLabel" :disabled="shotBusy || activeEpisodeShot?.video_status === 'processing'" /><el-select class="compactSetting" :modelValue="videoModel === 'pippit' ? '自动' : currentGenerationOptions.resolution" :disabled="videoModel === 'pippit' || generationSettingsBusy || activeEpisodeShot?.video_status === 'processing'" aria-label="视频清晰度" @change="saveClipGeneration('resolution', $event)"><el-option v-for="value in ['720P', '1080P', '1K', '2K']" :key="value" :label="value.toLowerCase()" :value="value" /></el-select><el-select class="compactSetting" :modelValue="videoModel === 'pippit' ? '自动' : currentGenerationOptions.aspect_ratio" :disabled="videoModel === 'pippit' || generationSettingsBusy || activeEpisodeShot?.video_status === 'processing'" aria-label="视频画幅" @change="saveClipGeneration('aspect_ratio', $event)"><el-option v-for="value in ['9:16', '16:9', '1:1', '3:4', '4:3', '21:9']" :key="value" :label="value" :value="value" /></el-select></div></template>
+        <ol v-else class="analysisSteps" aria-label="制作步骤"><li :class="{ active: analysisStep === 1 }">1. 脚本</li><li :class="{ active: analysisStep === 2 }"><button type="button" :disabled="analysisProject.analysis_state?.status !== 'done'" @click="productionView = 'assets'">2. 制作资产库</button></li><li :class="{ active: analysisStep === 3 }"><button type="button" :disabled="analysisProject.analysis_state?.status !== 'done'" @click="productionView = 'episodes'; selectedEpisode = null">3. 剧集</button></li></ol>
       </header>
       <div v-if="analysisProject.analysis_state?.status === 'done'" class="analysisResults" :class="{ editingEpisode: productionView === 'episodes' && selectedEpisode !== null }">
-        <div class="generationModels"><label>图片模型 <el-select v-model="imageModel" :disabled="assetGenerating" aria-label="图片生成模型"><el-option label="使用设置中的默认图片模型" value="" /><el-option v-for="model in generationModelOptions.image" :key="model.id" :label="model.label" :value="model.id" /></el-select></label><label v-if="productionView === 'episodes'">视频模型 <el-select v-model="videoModel" :disabled="shotBusy" aria-label="视频生成模型"><el-option label="使用设置中的默认视频模型" value="" /><el-option v-for="model in generationModelOptions.video" :key="model.id" :label="model.label" :value="model.id" /></el-select></label><el-button round @click="openPippitCreation">Pippit · 自动创作</el-button><el-button text @click="loadGenerationModels">刷新模型</el-button><p v-if="modelOptionsError" role="alert">{{ modelOptionsError }}</p></div>
-        <p class="generationModelNote">选择 Pippit 后仍使用当前生成按钮，完成后自动保存到当前资产或片段；Pippit 内部模型由服务自动决定。</p>
+        <div v-if="!isEpisodeEditor && productionView === 'assets'" class="generationModels"><generationModelMenu v-model="imageModel" :options="generationModelOptions.image" :defaultLabel="defaultImageModelLabel" :disabled="assetGenerating" /></div>
+        <p v-if="modelOptionsError" class="generationModelNote" role="alert">{{ modelOptionsError }}</p>
         <div v-if="pippitTargetProgress" class="pippitTargetStatus" role="status"><span>{{ pippitTargetProgress }}</span><a v-if="pippitTargetLink" :href="pippitTargetLink" target="_blank" rel="noopener noreferrer">查看 Pippit 任务 ↗</a></div>
         <template v-if="productionView === 'episodes'">
-          <div class="resultHeading"><div><h1>{{ selectedEpisode === null ? '剧集' : `第 ${selectedEpisode} 集 · 分镜脚本` }}</h1><p>{{ selectedEpisode === null ? `共 ${episodeItems.length} 集 · 分镜来自已保存的分析结果` : `共 ${visibleShotItems.length} 个分镜，选择卡片查看设计和提示词` }}</p></div><el-button round @click="selectedEpisode === null ? productionView = 'assets' : selectedEpisode = null">{{ selectedEpisode === null ? '制作资产库' : '返回剧集' }}</el-button></div>
+          <div v-if="selectedEpisode === null" class="resultHeading"><div><h1>剧集</h1><p>共 {{ episodeItems.length }} 集</p></div><el-button round @click="productionView = 'assets'">制作资产库</el-button></div>
           <div v-if="selectedEpisode === null" class="episodeGrid">
             <button v-for="episode in episodeItems" :key="episode.number" type="button" class="episodeCard" @click="selectedEpisode = episode.number">
               <div class="episodePreview"><icon-file-text :size="30" :strokeWidth="1" /></div>
@@ -215,6 +216,7 @@ import type { DocumentNodeOptions } from "./panels/canvas/canvasFiles";
 import workspaceMenu from "./components/workspaceMenu.vue";
 import floatingAgent from "./components/floatingAgent.vue";
 import pippitCreator from "./components/pippitCreator.vue";
+import generationModelMenu from "./components/generationModelMenu.vue";
 
 const documentPanel = defineAsyncComponent(() => import("./panels/document/index.vue"));
 
@@ -340,6 +342,9 @@ watch(() => [route.query.production, route.query.episode], ([view, episode]) => 
 const assetGenerating = ref(false);
 const imageModel = ref("");
 const videoModel = ref("");
+const defaultImageModelLabel = ref("选择图片模型");
+const defaultVideoModelLabel = ref("选择视频模型");
+const isEpisodeEditor = computed(() => productionView.value === "episodes" && selectedEpisode.value !== null);
 const pippitTargetProgress = ref("");
 const pippitTargetLink = ref("");
 const targetGenerationAbort = new AbortController();
@@ -365,7 +370,7 @@ async function generateWithPippit(projectId: number, kind: string, targetId: num
   }
   throw new Error("Pippit 任务仍未完成，可重新点击生成以恢复查询");
 }
-const generationModelOptions = ref<{ image: { id: string; label: string }[]; video: { id: string; label: string }[] }>({ image: [], video: [] });
+const generationModelOptions = ref<{ image: { id: string; label: string; description?: string }[]; video: { id: string; label: string; description?: string }[] }>({ image: [{ id: "pippit", label: "Pippit" }], video: [{ id: "pippit", label: "Pippit" }] });
 const modelOptionsError = ref("");
 async function loadGenerationModels() {
   try {
@@ -376,15 +381,21 @@ async function loadGenerationModels() {
     for (const stage of ["image", "video"] as const) {
       const config = stages[stage];
       const provider = providers.find(item => item.id === config?.provider);
-      const models = (provider?.models || []).filter(item => item.type === stage).map(item => ({ id: item.id, label: `${provider?.label || config.provider} · ${item.label || item.id}` }));
-      if (config?.model && !models.some(item => item.id === config.model)) models.unshift({ id: config.model, label: `${provider?.label || config.provider} · ${config.model}` });
-      generationModelOptions.value[stage] = [...models, { id: "pippit", label: "Pippit" }];
+      const models = (provider?.models || []).filter(item => item.type === stage).map(item => ({ id: item.id, label: item.label || item.id, description: provider?.label || config.provider }));
+      if (config?.model && !models.some(item => item.id === config.model)) models.unshift({ id: config.model, label: config.model, description: provider?.label || config.provider });
+      generationModelOptions.value[stage] = [...models, { id: "pippit", label: "Pippit", description: "图片与视频生成 · 自动匹配模型" }];
+      if (stage === "image") {
+        defaultImageModelLabel.value = models.find(item => item.id === config?.model)?.label || "选择图片模型";
+        if (!imageModel.value) imageModel.value = config?.model || "";
+      } else {
+        defaultVideoModelLabel.value = models.find(item => item.id === config?.model)?.label || "选择视频模型";
+        if (!videoModel.value) videoModel.value = config?.model || "";
+      }
     }
     modelOptionsError.value = "";
   } catch (error) { modelOptionsError.value = error instanceof Error ? error.message : "模型列表读取失败"; }
 }
 onMounted(() => { void loadGenerationModels(); });
-function openPippitCreation() { pippitVisible.value = true; }
 const generatingAssetKey = ref("");
 const selectingAssets = ref(false);
 const selectedAssetIds = ref<number[]>([]);
@@ -462,6 +473,22 @@ const shotPromptDraft = ref("");
 const shotBusy = ref(false);
 const episodeShots = computed(() => ((analysisProject.value?.shots || []) as Record<string, any>[]).filter(shot => Number(shot.episode_no) === selectedEpisode.value).sort((a, b) => a.shot_no - b.shot_no));
 const activeEpisodeShot = computed(() => episodeShots.value.find(shot => shot.id === selectedShotId.value) || episodeShots.value[0]);
+const generationSettingsBusy = ref(false);
+const currentGenerationOptions = computed(() => ({ aspect_ratio: (analysisProject.value?.outline as Record<string, any> | undefined)?.aspect_ratio || "9:16", resolution: "720P", mode: "auto", references: null, ...((analysisProject.value?.generation_settings || {}) as Record<string, any>), ...(activeEpisodeShot.value?.generation_settings || {}) }));
+async function saveClipGeneration(key: string, value: string) {
+  const shot = activeEpisodeShot.value;
+  const project = analysisProject.value;
+  if (!shot || !project || generationSettingsBusy.value) return;
+  generationSettingsBusy.value = true;
+  try {
+    const settings = currentGenerationOptions.value;
+    const response = await fetch(dramaForgeApiUrl(`projects/${project.id}/shots/${shot.id}/generation`), { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ aspect_ratio: settings.aspect_ratio, resolution: settings.resolution, model: settings.model || null, mode: settings.mode, references: settings.references, [key]: value }) });
+    const result = await response.json();
+    if (!response.ok) throw new Error(typeof result.detail === "string" ? result.detail : "生成参数保存失败");
+    await refreshDramaForgeProject(String(project.id));
+  } catch (error) { ElMessage.error(error instanceof Error ? error.message : "生成参数保存失败"); }
+  finally { generationSettingsBusy.value = false; }
+}
 const episodeAssetGroups = computed(() => {
   const characters = new Set(episodeShots.value.flatMap(shot => shot.character_names || []));
   const scenes = new Set(episodeShots.value.map(shot => shot.scene_name));
@@ -858,7 +885,7 @@ function saveDocumentNode(directory: string, canvasPath: string, nodeId: string,
       .assetGenerateButton { margin: 14px 8px 0; }
       .assetImageError { color: var(--el-color-danger); font-size: 12px; margin: 12px 8px; overflow-wrap: anywhere; }
       @media (max-width: 680px) { .assetGenerationBar { align-items: flex-start; flex-direction: column; } .assetGenerationActions { flex-wrap: wrap; } }
-      &.editingEpisode { width: calc(100% - 24px); margin: 16px auto; .resultHeading { margin: 12px 12px 20px; h1 { font-size: 18px; } } }
+      &.editingEpisode { width: calc(100% - 16px); margin: 8px auto; .episodeEditor { height: calc(100vh - 84px); min-height: 560px; grid-template-rows: minmax(0, 1fr) 130px; } .productionLibrary { max-height: none; } .clipScript { overflow-y: auto; } .clipPreview { min-height: 0; overflow: hidden; video, .emptyClipPreview { max-height: 100%; } } .clipTimeline { align-items: center; } }
       .episodeEditor { display: grid; grid-template-columns: 260px minmax(0, 1fr) 300px; grid-template-rows: minmax(440px, 1fr) auto; gap: 8px; min-height: calc(100vh - 210px); }
       .productionLibrary, .clipScript, .clipPreview, .clipTimeline { border: 1px solid var(--el-border-color-lighter); border-radius: 24px; background: var(--el-bg-color); }
       .productionLibrary { grid-row: 1 / 3; padding: 20px 16px; max-height: calc(100vh - 210px); overflow: auto; h2 { font-size: 14px; font-weight: 500; margin: 0 0 20px; } input { box-sizing: border-box; width: 100%; border-radius: 20px; padding: 8px 12px; border: 1px solid var(--el-border-color-lighter); background: var(--el-fill-color-light); color: inherit; } h3 { font-size: 12px; font-weight: 500; margin: 24px 0 10px; } }
@@ -869,7 +896,7 @@ function saveDocumentNode(directory: string, canvasPath: string, nodeId: string,
       .clipError { color: var(--el-color-danger); font-size: 12px; }
       .clipPreview { display: grid; place-items: center; padding: 24px; video, .emptyClipPreview { width: 100%; aspect-ratio: 9 / 16; border-radius: 24px; background: var(--el-fill-color-blank); object-fit: contain; } .emptyClipPreview { display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--el-text-color-placeholder); p { font-size: 12px; text-align: center; padding: 12px; } } }
       .clipTimeline { grid-column: 2 / 4; display: flex; gap: 10px; padding: 18px; overflow-x: auto; button { flex-shrink: 0; border: 0; background: none; color: var(--el-text-color-secondary); width: 122px; cursor: pointer; padding: 0; > div { height: 72px; border: 1px solid transparent; border-radius: 12px; background: var(--el-fill-color-light); display: grid; place-items: center; overflow: hidden; } &.active > div { border-color: var(--el-text-color-primary); } img { width: 100%; height: 100%; object-fit: cover; } span, small { display: block; margin-top: 7px; font-size: 11px; } small { font-size: 10px; } } }
-      @media (max-width: 1100px) { .episodeEditor { grid-template-columns: 200px minmax(0, 1fr); } .clipPreview { grid-column: 2; grid-row: 2; video, .emptyClipPreview { max-width: 240px; } } .clipTimeline { grid-column: 1 / 3; } }
+      @media (max-width: 900px) { .episodeEditor { grid-template-columns: 200px minmax(0, 1fr); } .clipPreview { grid-column: 2; grid-row: 2; video, .emptyClipPreview { max-width: 240px; } } .clipTimeline { grid-column: 1 / 3; } }
       @media (max-width: 680px) { .episodeEditor { display: flex; flex-direction: column; } .productionLibrary { max-height: 240px; } .clipScript { padding: 14px; } }
       .episodeGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
       .episodeCard { display: flex; align-items: center; gap: 28px; min-width: 0; padding: 9px; border: 1px solid var(--el-border-color-lighter); border-radius: 22px; background: var(--el-bg-color); color: inherit; text-align: left; cursor: pointer; &:hover { border-color: var(--el-color-primary); } }
@@ -887,6 +914,9 @@ function saveDocumentNode(directory: string, canvasPath: string, nodeId: string,
     }
 
     .analysisHeader {
+      &.episodeHeader { min-height: 60px; box-sizing: border-box; padding: 8px 16px; gap: 12px; position: sticky; top: 0; z-index: 3; .analysisProjectName { max-width: 240px; font-size: 12px; } .analysisBack { width: 28px; height: 28px; } }
+      .episodeSaved { font-size: 11px; color: var(--el-color-success); white-space: nowrap; }
+      .episodeHeaderTools { display: flex; align-items: center; gap: 8px; margin-left: auto; .compactSetting { width: 88px; :deep(.el-select__wrapper) { box-shadow: none; background: transparent; } } }
       .analysisSteps button { border: 0; padding: 0; color: inherit; background: transparent; font: inherit; cursor: pointer; &:disabled { cursor: default; } }
       display: flex; align-items: center; gap: 16px; min-height: 72px;
       padding: 12px 32px; background: var(--el-bg-color);
