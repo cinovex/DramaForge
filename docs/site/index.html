@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="DramaForge：开源 AI 短剧创作工作台。探索剧本分析、制作资产库、分镜编辑与多模型生成，查看本地安装指南和开发进度。">
+  <meta name="theme-color" content="#10120f">
+  <title>DramaForge — 从故事到镜头</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skipLink" href="#main">跳到正文</a>
+  <header class="siteHeader"><a class="brand" href="#" aria-label="DramaForge 首页"><span class="brandMark" aria-hidden="true">D<span>F</span></span>DramaForge</a><nav aria-label="主导航"><a href="#workflow">工作流</a><a href="#guide">使用指南</a><a href="#progress">开发进度</a><a class="githubLink" href="https://github.com/cinovex/DramaForge">GitHub ↗</a></nav></header>
+  <main id="main">
+    <section class="hero">
+      <div class="heroCopy"><p class="eyebrow"><span></span> OPEN SOURCE CREATIVE WORKSPACE</p><h1>把故事，<br>推进到每个<span>镜头。</span></h1><p class="heroDescription">为 AI 短剧创作整理剧本、人物与场景，<br>把分镜、素材和生成任务放进同一个工作台。</p><div class="heroActions"><a class="primaryButton" href="#guide">开始本地使用 <span>↗</span></a><a class="textButton" href="https://github.com/cinovex/DramaForge">浏览源代码 →</a></div><p class="heroNote">开发预览版 · MIT 开源 · 本地运行<br>本页为项目展示与指南，创作与生成服务需在本地启动。</p></div>
+      <div class="workflowPreview" aria-label="创作工作流示意"><div class="previewHeader"><span class="previewDot"></span><span>STORY TO SCREEN</span><span class="previewIndex">01 — 04</span></div><div class="previewStory"><span class="miniLabel">故事的起点</span><p>雨夜。一把旧钥匙，<br>让便利店里的笑容突然消失。</p><span class="storyTag">故事 → 资产 → 分镜 → 视频</span></div><div class="previewSteps"><div><span>01</span><strong>读懂剧本</strong><small>故事 · 人物 · 场景</small></div><div><span>02</span><strong>建立资产</strong><small>角色 · 场景 · 道具</small></div><div><span>03</span><strong>编辑分镜</strong><small>动作 · 对白 · 镜头</small></div><div><span>04</span><strong>生成片段</strong><small>模型 · 进度 · 素材</small></div></div><div class="previewFooter"><span>工作流示意</span><span class="previewLine"></span><span>DramaForge</span></div></div>
+    </section>
+    <section id="workflow" class="contentSection"><div class="sectionHeading"><p class="eyebrow">ONE CONNECTED WORKFLOW</p><h2>创作不止于一段提示词。</h2><p>从故事结构到生成结果，保留每一步可以继续编辑的内容。</p></div><div class="featureGrid"><article><span class="featureNumber">01 / 理清故事</span><h3>剧本分析与制作资产库</h3><p>导入或粘贴剧本，整理分集、角色、场景、道具与分镜。查看设计说明和提示词，单张或批量生成制作参考图。</p></article><article><span class="featureNumber">02 / 组织镜头</span><h3>剧集、分镜与节点画布</h3><p>按集查看片段，编辑并保存提示词，在资产库、脚本和预览之间继续制作。节点画布支持自由组织创作内容。</p></article><article><span class="featureNumber">03 / 连接生成</span><h3>模型选择与 Pippit 集成</h3><p>使用已配置的图片、视频服务，或选择 Pippit 提交创作。记录任务状态，将返回的素材保存到对应项目。</p></article></div></section>
+    <section id="guide" class="guideSection contentSection"><div class="sectionHeading"><p class="eyebrow">GET STARTED</p><h2>在你的电脑上开始。</h2><p>需要 Git、Node.js、Bun 与 Python 3.11。第三方生成服务需自行配置，可能收费。</p></div><div class="guideLayout"><aside class="guideSummary"><h3>四步启动工作台</h3><ol><li>获取代码并安装依赖</li><li>构建创作界面</li><li>启动本地服务</li><li>配置模型，导入剧本</li></ol><a href="https://github.com/cinovex/DramaForge#本地运行">查看完整 README ↗</a></aside><div class="guideCommands"><details open><summary><span>01</span>获取代码与安装依赖</summary><pre><code>git clone https://github.com/cinovex/DramaForge.git
+cd DramaForge
+bun install
+cd backend
+python -m pip install -r requirements.txt
+cd ../frontend
+npm install</code></pre><p>建议先为 Python 创建虚拟环境。后续命令从仓库根目录开始。</p></details><details><summary><span>02</span>构建创作界面</summary><pre><code>cd apps/web
+bun run build</code></pre><p>修改创作界面后，需要重新构建，再刷新网站。</p></details><details><summary><span>03</span>分别在三个终端启动服务</summary><p>以下为 Windows PowerShell 命令。每个终端从仓库根目录开始。</p><h4>画布服务 · 3001</h4><pre><code>$env:TOONFLOW_PORT="3001"
+$env:TOONFLOW_DATA_DIR="$PWD/storage/canvasData"
+bun run --filter '@toonflow/server' dev</code></pre><h4>生成与项目服务 · 8000</h4><pre><code>cd backend
+python -m uvicorn main:app --host 127.0.0.1 --port 8000</code></pre><h4>网站入口 · 3000</h4><pre><code>cd frontend
+npm run dev</code></pre><p>启动后，在同一台电脑打开 <code>http://localhost:3000</code>。</p></details><details><summary><span>04</span>完成第一次创作</summary><ol><li>在设置中填写模型服务地址、模型名称和 API 密钥。</li><li>上传 TXT 或粘贴剧本，开始分析并查看进度。</li><li>在制作资产库检查设定，生成角色、场景和道具参考图。</li><li>进入剧集，编辑片段提示词、选择模型，再提交生成。</li></ol><p>Pippit 需额外配置自己的访问密钥。内部模型由 Pippit 自动安排；需要补充信息时，查看任务回复。密钥只保存在本地配置，不要提交到 GitHub。</p></details></div></div></section>
+    <section id="progress" class="contentSection"><div class="sectionHeading"><p class="eyebrow">BUILT IN THE OPEN</p><h2>真实进度，公开记录。</h2><p>项目仍在开发中，界面已实现与完整工作流验收分开记录。</p></div><div class="statusList"><div><span class="statusTag implemented">已有实现</span><h3>剧本分析、资产库、分镜编辑、画布</h3><p>持续完善分析质量、交互和失败恢复。</p></div><div><span class="statusTag verified">已实测</span><h3>Pippit 视频生成与项目回填</h3><p>短片实测完成任务提交、进度查询、下载与原项目绑定；图片回填仍需更多验证。</p></div><div><span class="statusTag planned">待完善</span><h3>连续性、跨供应商切换与多账号调度</h3><p>跨片段人物一致性、部分供应商适配和多账号素材映射仍需开发与验证。</p></div></div><div class="contributeBanner"><div><h3>一起把创作流程打磨得更好。</h3><p>欢迎提交可复现的问题、使用反馈与改进建议。</p></div><a class="primaryButton" href="https://github.com/cinovex/DramaForge/issues">反馈与讨论 ↗</a></div></section>
+  </main>
+  <footer><a class="brand" href="#">DramaForge</a><p>基于 <a href="https://github.com/HBAI-Ltd/Toonflow-app">Toonflow</a> 开源项目开发，保留原作者归属与 MIT 许可。</p><div><a href="https://github.com/cinovex/DramaForge/blob/main/LICENSE">MIT License</a><a href="https://github.com/cinovex/DramaForge">源代码 ↗</a></div></footer>
+</body>
+</html>

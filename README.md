@@ -2,6 +2,8 @@
 
 面向 AI 短剧制作的本地创作工作台。在 Toonflow 开源界面与节点画布基础上，融合 DramaForge 的剧本分析和素材生成流程，并探索 Pippit 海外 API 接入。
 
+项目展示与使用指南：[cinovex.github.io/DramaForge](https://cinovex.github.io/DramaForge/)。该站点由免费 GitHub Pages 托管，只提供项目介绍和安装指南；完整创作工作台仍需按下文在本地启动。
+
 > 当前为开发预览版。部分入口已搭建，但不代表完整业务链路已验证。需要自行准备模型服务账号和 API 密钥，第三方生成可能收费。
 
 ## 功能状态
