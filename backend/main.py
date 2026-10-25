@@ -155,3 +155,5 @@ app.include_router(xyq_api.router)
 
 from api import library as libraryApi
 app.include_router(libraryApi.router)
+from api import dreaminaCanvas as dreaminaCanvasApi
+app.include_router(dreaminaCanvasApi.router)

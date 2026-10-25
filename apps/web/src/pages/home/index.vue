@@ -11,6 +11,7 @@
         <button class="navItem" :class="{ active: homeSection === 'create' && creationMode === 'marketing' }" type="button" @click="selectCreationMode('marketing')"><icon-speakerphone :size="18" />营销 Agent</button>
         <button class="navItem" :class="{ active: homeSection === 'create' && creationMode === 'script' }" type="button" @click="selectCreationMode('script')"><icon-movie :size="18" />短剧 Agent</button>
         <button class="navItem" type="button" @click="createBlankCanvas"><icon-layout-grid :size="18" />创建画布</button>
+        <button class="navItem" :class="{ active: homeSection === 'dreamina' }" type="button" @click="router.push('/home?section=dreamina')"><icon-layout-grid :size="18" />即梦画布</button>
         <span class="navDivider" />
         <span class="navCaption">项目</span>
         <button class="navItem" :class="{ active: homeSection === 'projects' }" type="button" @click="showProjects"><icon-folder :size="18" />项目资源</button>
@@ -35,10 +36,11 @@
     </el-aside>
     <el-container class="homeShell">
       <el-header class="pageHeader">
-        <div class="headerBreadcrumb"><span>工作空间</span><span class="breadcrumbSlash">/</span><strong>{{ homeSection === 'projects' ? '项目资源' : homeSection === 'assets' ? '资产库' : homeSection === 'skills' ? '技能' : creationMode === 'script' ? '短剧工作室' : creationMode === 'marketing' ? '营销 Agent' : '创作' }}</strong></div>
+        <div class="headerBreadcrumb"><span>工作空间</span><span class="breadcrumbSlash">/</span><strong>{{ homeSection === 'dreamina' ? '即梦画布' : homeSection === 'projects' ? '项目资源' : homeSection === 'assets' ? '资产库' : homeSection === 'skills' ? '技能' : creationMode === 'script' ? '短剧工作室' : creationMode === 'marketing' ? '营销 Agent' : '创作' }}</strong></div>
       </el-header>
       <el-main class="pageContent">
-      <assetLibrary v-if="homeSection === 'assets'" @openProject="openLibraryProject" />
+      <dreaminaCanvas v-if="homeSection === 'dreamina'" :key="String(router.currentRoute.value.query.projectId || '')" :localProjectId="Number(router.currentRoute.value.query.projectId) > 0 ? Number(router.currentRoute.value.query.projectId) : undefined" />
+      <assetLibrary v-else-if="homeSection === 'assets'" @openProject="openLibraryProject" />
       <skillLibrary v-else-if="homeSection === 'skills'" @select="selectLibrarySkill" />
       <template v-else>
       <section v-if="homeSection === 'create'" class="creationPanel" aria-label="创建项目">
@@ -229,6 +231,7 @@ import { deviceHubEnabled, mobileConnection, mobileConnectionLabel } from "@/lib
 import useWorkspaceFiles from "@/lib/workspaceFiles";
 import settings from "@/components/settings/index.vue";
 import assetLibrary from "./assetLibrary.vue";
+import dreaminaCanvas from "./dreaminaCanvas.vue";
 import skillLibrary from "./skillLibrary.vue";
 import workspacePicker from "./workspacePicker.vue";
 
@@ -236,7 +239,7 @@ const settingsVisible = ref(false);
 const mobileConnectVisible = ref(false);
 const mobileConnect = defineAsyncComponent(() => import("@/components/mobileConnect.vue"));
 const router = useRouter();
-const homeSection = computed(() => { const section = router.currentRoute.value.query.section; return section === "projects" || section === "assets" || section === "skills" ? section : "create"; });
+const homeSection = computed(() => { const section = router.currentRoute.value.query.section; return section === "projects" || section === "assets" || section === "skills" || section === "dreamina" ? section : "create"; });
 const creationMode = ref<"prompt" | "marketing" | "script">("prompt");
 const creationEngine = ref("studio");
 const creating = ref(false);
