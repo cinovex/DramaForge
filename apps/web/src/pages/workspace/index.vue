@@ -30,6 +30,7 @@
       <header class="analysisHeader" :class="{ episodeHeader: isEpisodeEditor }">
         <button class="analysisBack" type="button" :aria-label="isEpisodeEditor ? '返回剧集' : '返回项目资源'" @click="isEpisodeEditor ? selectedEpisode = null : router.push('/home?section=projects')">‹</button>
         <span class="analysisProjectName">{{ isEpisodeEditor ? `第 ${selectedEpisode} 集 · ${analysisProject.name}` : analysisProject.name }}</span>
+        <el-tag v-if="analysisProject.generation_settings?.creativePreferences?.styleName" size="small" effect="plain">{{ analysisProject.generation_settings.creativePreferences.styleName }}</el-tag>
         <template v-if="isEpisodeEditor"><span class="episodeSaved">● {{ editingShotPrompt ? '未保存' : generationSettingsBusy || shotBusy ? '正在处理' : '已保存' }}</span><div class="episodeHeaderTools"><generationModelMenu v-model="videoModel" :options="generationModelOptions.video" :defaultLabel="defaultVideoModelLabel" :disabled="shotBusy || activeEpisodeShot?.video_status === 'processing'" /><el-select class="compactSetting" :modelValue="videoModel === 'pippit' ? '自动' : currentGenerationOptions.resolution" :disabled="videoModel === 'pippit' || generationSettingsBusy || activeEpisodeShot?.video_status === 'processing'" aria-label="视频清晰度" @change="saveClipGeneration('resolution', $event)"><el-option v-for="value in ['720P', '1080P', '1K', '2K']" :key="value" :label="value.toLowerCase()" :value="value" /></el-select><el-select class="compactSetting" :modelValue="videoModel === 'pippit' ? '自动' : currentGenerationOptions.aspect_ratio" :disabled="videoModel === 'pippit' || generationSettingsBusy || activeEpisodeShot?.video_status === 'processing'" aria-label="视频画幅" @change="saveClipGeneration('aspect_ratio', $event)"><el-option v-for="value in ['9:16', '16:9', '1:1', '3:4', '4:3', '21:9']" :key="value" :label="value" :value="value" /></el-select></div></template>
         <ol v-else class="analysisSteps" aria-label="制作步骤"><li :class="{ active: analysisStep === 1 }">1. 脚本</li><li :class="{ active: analysisStep === 2 }"><button type="button" :disabled="analysisProject.analysis_state?.status !== 'done'" @click="productionView = 'assets'">2. 制作资产库</button></li><li :class="{ active: analysisStep === 3 }"><button type="button" :disabled="analysisProject.analysis_state?.status !== 'done'" @click="productionView = 'episodes'; selectedEpisode = null">3. 剧集</button></li></ol>
         <el-button round size="small" @click="router.push({ path: '/home', query: { section: 'dreamina', projectId: analysisProject?.id } })">即梦画布</el-button>
@@ -107,6 +108,7 @@
       <template v-if="selectedResult"><img v-if="selectedResult.image" class="assetDetailImage" :src="selectedResult.image" :alt="selectedResult.name" /><p class="resultDetailText">{{ selectedResult.description }}</p><h3>生成提示词</h3><p class="resultDetailText">{{ selectedResult.prompt || '尚未生成专用提示词，可先使用上述文字设定。' }}</p><section v-for="section in resultDesignSections" :key="section.label"><h3>{{ section.label }}</h3><p class="resultDetailText">{{ section.text }}</p></section><el-button v-if="selectedResult.prompt" @click="copyResultPrompt">复制提示词</el-button><el-button v-if="selectedResult.kind && selectedResult.kind !== 'shots'" type="primary" :loading="assetGenerating" @click="generateResultImage()">{{ selectedResult.image ? '重新生成参考图' : '生成参考图' }}</el-button></template>
     </el-dialog>
     <div class="workspaceTools">
+      <el-tag v-if="analysisProject?.generation_settings?.creativePreferences?.styleName" size="small" effect="plain">风格 · {{ analysisProject.generation_settings.creativePreferences.styleName }}</el-tag>
       <el-segmented :modelValue="activePanel" class="panelSwitcher" :options="panelOptions" size="small" aria-label="切换面板" @change="switchPanel">
         <template #default="{ item }">
           <span class="panelOption">
@@ -318,6 +320,7 @@ type DramaForgeProject = {
   name: string;
   status?: string;
   workspace_directory?: string;
+  generation_settings?: Record<string, any>;
   outline?: { title?: string };
   analysis_state?: { status?: string; progress?: string; error?: string; completed?: number; total?: number; counts?: Record<string, number>; pauseRequested?: boolean; units?: Record<string, { id: string; label: string; status: string; error?: string; source?: { provider?: string; model?: string } }> };
   shots?: unknown[];

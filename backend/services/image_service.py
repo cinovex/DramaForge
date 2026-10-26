@@ -37,6 +37,19 @@ def _store_image_prompt(db: Session, local_url: str, prompt: str, model: str) ->
 
 
 def build_asset_prompt(kind: str, asset, variant: str = "base") -> str:
+    prompt = buildAssetPromptBase(kind, asset, variant)
+    project = asset.project
+    preferences = (project.generation_settings or {}).get("creativePreferences") or {}
+    style = preferences.get("stylePrompt")
+    if style:
+        if preferences.get("styleId") in {"anime", "ink", "animation"}:
+            import re
+            prompt = re.sub(r"photorealistic(?: environment)?", "", prompt, flags=re.IGNORECASE)
+        prompt += f"\n项目选定视觉风格（保持全剧一致）：{style}。既有默认风格词与此冲突时，以此项目风格为准。"
+    return prompt
+
+
+def buildAssetPromptBase(kind: str, asset, variant: str = "base") -> str:
     """Build the exact prompt used for a generated or externally uploaded asset image."""
     if kind == "character":
         design = asset.design or {}

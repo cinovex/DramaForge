@@ -118,9 +118,7 @@
           </div>
           <div class="scriptComposerOptions">
             <el-input v-model="scriptName" maxlength="80" placeholder="项目名称（可留空，自动识别）" aria-label="项目名称" :disabled="scriptCreating" />
-            <el-select v-model="scriptAspectRatio" aria-label="作品画幅" :disabled="scriptCreating">
-              <el-option v-for="ratio in ['9:16', '16:9', '1:1', '3:4', '4:3', '21:9']" :key="ratio" :label="ratio" :value="ratio" />
-            </el-select>
+            <creationPreferences v-model="scriptPreferences" mode="upload" :disabled="scriptCreating" />
             <el-input v-model="scriptModel" placeholder="沿用全局剧本模型" aria-label="剧本分析模型" :disabled="scriptCreating" />
           </div>
           <div class="scriptComposerFooter">
@@ -133,7 +131,7 @@
 <pippitConversation v-else v-model="pippitMessage" :mode="studioTab" :task="pippitTask" :snapshot="pippitSnapshot" :statusLabel="pippitStatusLabel" :busy="pippitBusy" :error="pippitError" :progress="pippitUploadProgress" :submissionVersion="pippitSubmissionVersion" @send="sendStudioMessage" @refresh="refreshStudioTask" @save="importStudioResults" @newSession="newStudioSession" />
         </el-card>
         <section v-if="creationMode === 'script' && studioTasks.length" class="pippitHistory">
-          <h2>创作任务</h2><button v-for="task in studioTasks" :key="task.run_id" @click="restoreStudioTask(task)"><span>{{ task.message }}</span><small>{{ pippitStatusNames[task.status] || task.status }}</small></button>
+          <h2>创作任务</h2><button v-for="task in studioTasks" :key="task.run_id" @click="restoreStudioTask(task)"><span>{{ task.message }}</span><small>{{ task.creativeOptions?.styleName ? task.creativeOptions.styleName + ' · ' : '' }}{{ pippitStatusNames[task.status] || task.status }}</small></button>
         </section>
       </section>
       <section v-if="homeSection === 'create' && creationMode !== 'script'" class="recommendations" aria-labelledby="recommendationsTitle">
@@ -180,6 +178,7 @@
               <span class="projectInfo">
                 <span class="projectName" :title="item.name">{{ item.name || `短剧项目 ${item.id}` }}</span>
                 <span class="projectPath">{{ item.project_type === 'canvas' ? '画布项目' : '短剧创作' }} · {{ dramaForgeStatusLabel(item.status) }}</span>
+                <span v-if="item.generation_settings?.creativePreferences?.styleName" class="projectPath">风格 · {{ item.generation_settings.creativePreferences.styleName }}</span>
                 <span class="projectTime">创建于 {{ item.created_at ? new Date(item.created_at).toLocaleString(locale, { hour12: false }) : '时间未知' }}</span>
               </span>
             </button>
@@ -226,6 +225,7 @@ import settings from "@/components/settings/index.vue";
 import assetLibrary from "./assetLibrary.vue";
 import dreaminaCanvas from "./dreaminaCanvas.vue";
 import pippitConversation from "./pippitConversation.vue";
+import creationPreferences from "./creationPreferences.vue";
 import skillLibrary from "./skillLibrary.vue";
 import workspacePicker from "./workspacePicker.vue";
 
@@ -241,11 +241,13 @@ const opening = ref(false);
 const scriptText = ref("");
 const scriptName = ref("");
 const scriptAspectRatio = ref("9:16");
+const scriptPreferences = ref({ styleId: 'none', customStyle: '', aspectRatio: '9:16', episodes: 10 });
+watch(scriptPreferences, value => { scriptAspectRatio.value = value.aspectRatio; }, { deep: true });
 const scriptModel = ref("");
 const scriptCreating = ref(false);
 const scriptError = ref("");
 const studioTab = ref("upload");
-const activeStudioConversation = computed(() => creationMode.value === 'script' && ['writer', 'remix'].includes(studioTab.value));
+const activeStudioConversation = computed(() => creationMode.value === 'script' && ['writer', 'remix'].includes(studioTab.value) && !!pippitTask.value);
 const studioTabs = [{ id: "upload", name: "上传脚本" }, { id: "writer", name: "AI 编剧" }, { id: "canvas", name: "创意画布" }, { id: "remix", name: "重制转绘" }];
 const pippitMessage = ref("");
 const pippitUploadProgress = ref("");
@@ -255,10 +257,12 @@ let pippitStopped = false;
 const pippitUploadedFiles = new WeakMap<File, string>();
 const pippitBusy = ref(false);
 const pippitResult = ref("");
-type PippitTask = { thread_id: string; run_id: string; web_thread_link?: string };
+type PippitTask = { thread_id: string; run_id: string; web_thread_link?: string; source?: 'local'; project_id?: number; shot_id?: number };
+type StudioCreativeOptions = { styleId: string; customStyle: string; aspectRatio: string; episodes: number; modelId?: string; resolution?: string; duration?: number; outputKind?: string };
+const localMediaRequestId = ref('');
 const pippitTask = ref<PippitTask>();
 const pippitError = ref("");
-type StudioTask = PippitTask & { message: string; status: string; project_id?: number };
+type StudioTask = PippitTask & { message: string; status: string; project_id?: number; creativeOptions?: { styleName?: string } };
 const studioTasks = ref<StudioTask[]>([]);
 async function loadStudioTasks() {
   try {
@@ -287,6 +291,7 @@ async function restoreStudioTask(task: StudioTask) {
 }
 async function importStudioResults() {
   if (!pippitTask.value || pippitBusy.value) return;
+  if (pippitTask.value.source === 'local') { await router.push(`/workspace?dramaforgeProjectId=${pippitTask.value.project_id}`); return; }
   pippitBusy.value = true;
   pippitError.value = "";
   try {
@@ -323,7 +328,7 @@ async function startCreation() {
   if (workspaceDirectory.value) await createProject();
   else await promptWorkspacePicker.value?.chooseDirectory();
 }
-async function submitStudioTask(files?: File[], followup = false) {
+async function submitStudioTask(files?: File[], followup = false, options?: StudioCreativeOptions) {
   if (pippitBusy.value) return;
   if (!pippitMessage.value.trim()) return ElMessage.warning("请输入创作需求或回复");
   const fromHome = creationMode.value !== "script";
@@ -331,7 +336,7 @@ async function submitStudioTask(files?: File[], followup = false) {
   const types = ['image/png', 'image/jpeg', 'image/webp', 'video/mp4', 'video/quicktime', 'video/webm'];
   if (references.length > 32 || references.some(file => !types.includes(file.type) || !file.size || file.size > 200 * 1024 * 1024)) return ElMessage.warning("最多添加 32 个 PNG/JPG/WEBP/MP4/MOV/WEBM，每个文件不超过 200 MB");
   pippitBusy.value = true;
-  const confirmed = await ElMessageBox.confirm("将通过 Pippit 海外 API 提交，可能消耗账户积分，是否继续？", "提交创作", { confirmButtonText: "确认提交", cancelButtonText: "取消" }).then(() => true, () => false);
+  const confirmed = await ElMessageBox.confirm(options && studioTab.value === 'writer' && !followup && !options.outputKind ? `将按所选风格和比例创作 ${options.episodes} 集剧本文本，不生成图片或视频，可能消耗 Pippit 积分，是否继续？` : "将通过 Pippit 海外 API 提交，可能消耗账户积分，是否继续？", "提交创作", { confirmButtonText: "确认提交", cancelButtonText: "取消" }).then(() => true, () => false);
   if (!confirmed) { pippitBusy.value = false; scheduleStudioPoll(); return; }
   pippitError.value = "";
   try {
@@ -348,7 +353,7 @@ async function submitStudioTask(files?: File[], followup = false) {
       pippitUploadedFiles.set(reference, String(assetId));
     }
     pippitUploadProgress.value = "参考素材已就绪，正在提交创作请求…";
-    const result = await studioRequest("submit", JSON.stringify({ message: pippitMessage.value, asset_ids: assetIds, thread_id: followup ? pippitTask.value?.thread_id : undefined }));
+    const result = await studioRequest("submit", JSON.stringify({ message: pippitMessage.value, asset_ids: assetIds, thread_id: followup ? pippitTask.value?.thread_id : undefined, creativeOptions: options, creationMode: options ? options.outputKind || studioTab.value : '' }));
     const task = result.data ?? result;
     if (task.thread_id && task.run_id) pippitTask.value = { thread_id: task.thread_id, run_id: task.run_id, web_thread_link: task.web_thread_link };
     else throw new Error("接口未返回任务编号，请到 Pippit 检查任务，避免重复提交");
@@ -366,16 +371,49 @@ async function refreshStudioTask() {
   if (!pippitTask.value || pippitBusy.value) return;
   pippitBusy.value = true;
   pippitError.value = "";
-  try { pippitResult.value = JSON.stringify(await studioRequest("thread", JSON.stringify(pippitTask.value)), null, 2); saveStudioTask(); }
+  try {
+    if (pippitTask.value.source === 'local') {
+      const response = await fetch(dramaForgeApiUrl(`creation/tasks/${pippitTask.value.project_id}/${pippitTask.value.shot_id}`));
+      if (!response.ok) throw new Error('生成状态读取失败');
+      pippitResult.value = JSON.stringify(await response.json());
+    } else pippitResult.value = JSON.stringify(await studioRequest("thread", JSON.stringify(pippitTask.value)), null, 2);
+    saveStudioTask();
+  }
   catch (error) { pippitError.value = error instanceof Error ? error.message : "查询失败"; }
   finally { pippitBusy.value = false; scheduleStudioPoll(); }
 }
-function sendStudioMessage(files: File[]) { void submitStudioTask(files, !!pippitTask.value); }
+function sendStudioMessage(files: File[], options: StudioCreativeOptions) {
+  if (options.modelId && options.modelId !== 'pippit') void submitLocalStudio(files, options);
+  else void submitStudioTask(files, !!pippitTask.value && pippitTask.value.source !== 'local', options);
+}
+async function submitLocalStudio(files: File[], options: StudioCreativeOptions) {
+  if (pippitBusy.value || !pippitMessage.value.trim()) return;
+  if (files.some(file => !file.type.startsWith('image/'))) return ElMessage.warning('这个独立 API 模型暂不支持视频参考，请使用 Pippit 或移除视频');
+  pippitBusy.value = true;
+  const confirmed = await ElMessageBox.confirm(`将使用 ${options.modelId?.split(':').slice(1).join(':')} 生成一${options.outputKind === 'image' ? '张图片' : '段视频'}，比例 ${options.aspectRatio}、清晰度 ${options.resolution}${options.outputKind === 'video' ? `、${options.duration}秒` : ''}。使用该供应商额度，不消耗 Pippit 账号积分；实际费用暂未知，是否提交？`, '确认生成', { confirmButtonText: '提交生成' }).then(() => true, () => false);
+  if (!confirmed) { pippitBusy.value = false; scheduleStudioPoll(); return; }
+  pippitError.value = '';
+  localMediaRequestId.value ||= crypto.randomUUID();
+  try {
+    const form = new FormData();
+    form.append('payload', JSON.stringify({ requestId: localMediaRequestId.value, modelId: options.modelId, message: pippitMessage.value, preferences: options, resolution: options.resolution, duration: options.duration, projectId: pippitTask.value?.project_id }));
+    for (const file of files) form.append('files', file);
+    const response = await fetch(dramaForgeApiUrl('creation/generate'), { method: 'POST', body: form });
+    const result = await response.json();
+    if (!response.ok) throw new Error(typeof result.detail === 'string' ? result.detail : '生成提交失败');
+    pippitTask.value = { thread_id: '', run_id: `local-${result.project_id}-${result.shot_id}`, source: 'local', project_id: result.project_id, shot_id: result.shot_id };
+    pippitResult.value = JSON.stringify(result);
+    pippitMessage.value = ''; pippitSubmissionVersion.value++; localMediaRequestId.value = '';
+    saveStudioTask(); void fetchDramaForgeProjects();
+  } catch (cause) { pippitError.value = cause instanceof Error ? cause.message : '提交状态未确认，请先查看项目'; }
+  finally { pippitBusy.value = false; scheduleStudioPoll(); }
+}
 function newStudioSession() {
   if (pippitBusy.value) return;
   if (pippitPollTimer) clearTimeout(pippitPollTimer);
   pippitTask.value = undefined; pippitResult.value = ""; pippitMessage.value = ""; pippitError.value = "";
   pippitSubmissionVersion.value++;
+  localMediaRequestId.value = '';
   localStorage.removeItem("dramaForgePippitTask");
 }
 function scheduleStudioPoll() {
@@ -402,7 +440,7 @@ const draggingAttachments = ref(false);
 let attachmentDragDepth = 0;
 const workspaceStore = useWorkspaceStore();
 const { project, projectList } = storeToRefs(workspaceStore);
-type DramaForgeProjectSummary = { id: number; name: string; status?: string; created_at?: string; workspace_directory?: string; project_type?: string };
+type DramaForgeProjectSummary = { id: number; name: string; status?: string; created_at?: string; workspace_directory?: string; project_type?: string; generation_settings?: { creativePreferences?: { styleName?: string } } };
 const dramaForgeProjects = ref<DramaForgeProjectSummary[]>([]);
 const deletingProjectId = ref<number | null>(null);
 const workspaceDirectory = ref(project.value?.directory ?? "");
@@ -425,16 +463,6 @@ function dramaForgeApiUrl(path: string) {
 }
 
 onMounted(() => {
-  try {
-    const saved = JSON.parse(localStorage.getItem("dramaForgePippitTask") || "null");
-    if (typeof saved?.task?.thread_id === "string" && typeof saved?.task?.run_id === "string") {
-      pippitTask.value = saved.task;
-      pippitResult.value = typeof saved.result === "string" ? saved.result : "";
-      pippitMessage.value = "";
-      void restoreStudioTask({ ...saved.task, message: typeof saved.message === "string" ? saved.message : "", status: pippitSnapshot.value.status || 'submitted' });
-    }
-  } catch { ElMessage.warning("任务记录无法读取，可在 Pippit 查看原会话"); }
-
   window.addEventListener("dragend", clearAttachmentDrag, true);
   window.addEventListener("drop", clearAttachmentDrag, true);
   window.addEventListener("blur", clearAttachmentDrag);
@@ -592,7 +620,7 @@ async function startScriptAnalysis() {
     const createResponse = await fetch(dramaForgeApiUrl("projects"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, script_text: text, aspect_ratio: scriptAspectRatio.value }),
+      body: JSON.stringify({ name, script_text: text, aspect_ratio: scriptAspectRatio.value, creativeOptions: scriptPreferences.value }),
     });
     const created = await createResponse.json().catch(() => ({}));
     if (!createResponse.ok || !created.id) throw new Error(typeof created.detail === "string" ? created.detail : "项目创建失败");
@@ -1173,7 +1201,7 @@ async function createProject(fromPrompt = true) {
 
         .scriptComposerOptions {
           display: grid;
-          grid-template-columns: 1.5fr 120px 1fr;
+          grid-template-columns: minmax(0, 1.5fr) minmax(210px, auto) minmax(140px, 1fr);
           gap: 12px;
           margin-top: 14px;
         }
@@ -1331,7 +1359,7 @@ async function createProject(fromPrompt = true) {
   .home .composerFooter { align-items: flex-end; }
   .home .composerTools { gap: 4px !important; }
   .home .composerTools .canvasToggle { font-size: 11px; }
-  .home .scriptComposerOptions { grid-template-columns: 1fr 100px !important; }
+  .home .scriptComposerOptions { grid-template-columns: 1fr !important; }
   .home .scriptComposerOptions > :last-child { grid-column: 1 / -1; }
   .home .projectList .sectionHeader { align-items: flex-start; }
   .home .projectList .sectionHeader > .el-space { justify-content: flex-start; }

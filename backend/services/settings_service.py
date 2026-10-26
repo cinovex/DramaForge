@@ -11,6 +11,7 @@ import copy
 import json
 import os
 import tempfile
+from contextvars import ContextVar
 from pathlib import Path
 
 from sqlalchemy.orm import Session
@@ -19,6 +20,8 @@ from config import BASE_DIR, DEFAULT_SETTINGS, STORAGE_DIR
 from database import SessionLocal
 from models.drama import Setting
 from services.crypto import encrypt, decrypt
+
+stageExecutionConfigs = ContextVar("stageExecutionConfigs", default=None)
 
 TOONFLOW_SETTINGS_PATH = STORAGE_DIR / "canvasData" / "settings.json"
 TEXT_PROVIDER_ID = "dramaForgeOpenAI"
@@ -182,6 +185,9 @@ def get_all_settings(db: Session):
 
 
 def get_stage_config(db: Session, stage: str) -> dict | None:
+    snapshots = stageExecutionConfigs.get()
+    if snapshots is not None and stage in snapshots:
+        return dict(snapshots[stage])
     row = db.query(Setting).filter_by(stage=stage).first()
     return _safe_stage_config(row) if row else None
 

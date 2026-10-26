@@ -5,6 +5,7 @@ from models.drama import Project, Shot, ImageSource
 from typing import Literal
 from pydantic import BaseModel
 from services.generation_design import Ratio, effective_options
+from services import creativePreferences
 import os, uuid, json, shutil, re
 from pathlib import Path
 
@@ -18,6 +19,7 @@ class ProjectCreate(BaseModel):
     script_text: str = ""
     aspect_ratio: Ratio = "9:16"
     project_type: Literal["drama", "canvas"] = "drama"
+    creativeOptions: creativePreferences.creativeOptions | None = None
 
 
 @router.get("")
@@ -220,7 +222,12 @@ def _reconstruct_legacy_image_prompt(project, media_url: str, db: Session) -> st
 
 @router.post("")
 def create_project(body: ProjectCreate, db: Session = Depends(get_db)):
-    p = Project(name=body.name, script_text=body.script_text, status="draft", generation_settings={"aspect_ratio":body.aspect_ratio,"resolution":"720P","project_type":body.project_type})
+    preferences = {}
+    if body.creativeOptions:
+        try: preferences = creativePreferences.resolveCreativeOptions(body.creativeOptions)
+        except ValueError as error: raise HTTPException(422, str(error))
+        preferences.pop("episodes", None)  # Uploaded scripts retain their own episode structure.
+    p = Project(name=body.name, script_text=body.script_text, status="draft", generation_settings={"aspect_ratio":preferences.get("aspectRatio") or body.aspect_ratio,"resolution":"720P","project_type":body.project_type,"creativePreferences":preferences})
     db.add(p)
     db.commit()
     db.refresh(p)

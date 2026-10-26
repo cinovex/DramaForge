@@ -17,6 +17,7 @@ from config import STORAGE_DIR
 from urllib.parse import urlparse
 import hashlib
 import math
+from services import creativePreferences
 
 router = APIRouter(prefix="/api/pippit", tags=["pippit"])
 max_upload_bytes = 200 * 1024 * 1024
@@ -70,6 +71,8 @@ class SubmitRequest(BaseModel):
     message: str = Field(min_length=1, max_length=100000)
     thread_id: str = Field(default="", max_length=200)
     asset_ids: list[str] = Field(default_factory=list, max_length=32)
+    creativeOptions: creativePreferences.creativeOptions | None = None
+    creationMode: str = Field(default="", pattern="^(writer|remix|image|video|)$")
 
 
 class ThreadRequest(BaseModel):
@@ -320,14 +323,28 @@ async def upload_reference(file: UploadFile = File(...)):
 @router.post("/submit")
 async def submit_run(body: SubmitRequest, db: Session = Depends(get_db)):
     skill_dir = _ensure_skill()
-    args = ["--message", body.message]
+    preferences = None
+    message = body.message
+    if body.creativeOptions:
+        try: preferences = creativePreferences.resolveCreativeOptions(body.creativeOptions)
+        except ValueError as error: raise HTTPException(422, str(error))
+        choices = f"\n\n【用户在创作面板选择的设置】\n输出比例：{preferences['aspectRatio']}。"
+        if preferences["stylePrompt"]: choices += f"\n视觉风格：{preferences['styleName']}。{preferences['stylePrompt']}"
+        if body.creationMode == "writer":
+            choices += f"\n剧本集数：{preferences['episodes']} 集。"
+            if not body.thread_id: choices += "本次仅创作剧本文本，不生成图片或视频；媒体生成待用户后续确认。"
+        elif body.creationMode in {"image", "video"}:
+            choices += "\n本次用户选择生成" + ("图片。" if body.creationMode == "image" else "视频。")
+        message += choices
+    args = ["--message", message]
     if body.thread_id:
         args += ["--thread-id", body.thread_id]
     if body.asset_ids:
         args += ["--asset-ids", *body.asset_ids]
     result = await _run_skill(skill_dir / "scripts" / "nest" / "submit_run.py", *args, timeout=180)
     task = pippitTaskRecord(run_id=result["run_id"], thread_id=result["thread_id"],
-                            message=body.message, web_thread_link=result.get("web_thread_link", ""))
+                            message=body.message, web_thread_link=result.get("web_thread_link", ""),
+                            result={"creativeOptions": preferences, "submittedMessage": message, "creationMode": body.creationMode})
     db.add(task)
     db.commit()
     return conversationSnapshot(db, task, result)
@@ -358,7 +375,7 @@ async def get_thread(body: ThreadRequest, db: Session = Depends(get_db)):
                 db.commit()
         else:
             binding = None
-            task.result = result
+            task.result = {**{key: value for key, value in (task.result or {}).items() if key in {"creativeOptions", "submittedMessage", "creationMode"}}, **result}
             task.status = result.get("status", "unknown")
             db.commit()
         if binding:
@@ -367,14 +384,14 @@ async def get_thread(body: ThreadRequest, db: Session = Depends(get_db)):
 
 
 def conversationSnapshot(db, task, snapshot=None):
-    result = dict(snapshot if snapshot is not None else (task.result or {}))
+    result = {**(task.result or {}), **(snapshot or {})}
     result.setdefault("status", task.status)
     messages = []
     seen = set()
     for item in db.query(pippitTaskRecord).filter_by(thread_id=task.thread_id).filter(pippitTaskRecord.id <= task.id).order_by(pippitTaskRecord.id).all():
         current = result if item.id == task.id else (item.result or {})
         entries = current.get("messages") or []
-        hasUserMessage = any(entry.get("role") == "user" and any(isinstance(part, dict) and part.get("data") == item.message for part in entry.get("content", []) or []) for entry in entries if isinstance(entry, dict))
+        hasUserMessage = any(entry.get("role") == "user" and any(isinstance(part, dict) and part.get("data") in (item.message, (item.result or {}).get("submittedMessage", item.message)) for part in entry.get("content", []) or []) for entry in entries if isinstance(entry, dict))
         if not hasUserMessage:
             entries = [{"id": f"local-{item.run_id}", "role": "user", "content": [{"type": "text", "data": item.message}]}, *entries]
         for entry in entries:
@@ -394,11 +411,17 @@ def savedTask(runId: str, db: Session = Depends(get_db)):
     return conversationSnapshot(db, task)
 
 
+@router.get("/creative-options")
+def creativeOptionCatalog():
+    return {"styles": creativePreferences.stylePresets, "source": "local"}
+
+
 @router.get("/tasks")
 def listTasks(db: Session = Depends(get_db)):
     return [{"thread_id": task.thread_id, "run_id": task.run_id,
              "message": task.message, "status": task.status,
              "web_thread_link": task.web_thread_link, "project_id": task.project_id,
+             "creativeOptions": (task.result or {}).get("creativeOptions"),
              "created_at": task.created_at.isoformat()} for task in
             db.query(pippitTaskRecord).order_by(pippitTaskRecord.id.desc()).limit(100).all()]
 
@@ -459,11 +482,13 @@ async def importResults(body: ThreadRequest, db: Session = Depends(get_db)):
                 from api.batch import _media_info
                 duration, _ = await asyncio.to_thread(_media_info, filePath)
             media.append((suffix, "/storage/" + filePath.relative_to(STORAGE_DIR.resolve()).as_posix(), duration))
+        preferences = (task.result or {}).get("creativeOptions") or {}
         project = Project(name=task.message[:60] or "Pippit 创作", script_text=task.message, status="ready",
+                          generation_settings={"aspect_ratio": preferences.get("aspectRatio") or ratio or "9:16", "creativePreferences": preferences},
                           analysis_state={"source": "pippit", "thread_id": task.thread_id, "run_id": task.run_id})
         db.add(project)
         db.flush()
-        db.add(Outline(project_id=project.id, title=project.name, aspect_ratio=ratio))
+        db.add(Outline(project_id=project.id, title=project.name, aspect_ratio=preferences.get("aspectRatio") or ratio or "9:16", video_style=preferences.get("stylePrompt", "")))
         for index, (suffix, url, duration) in enumerate(media, 1):
             video = suffix in (".mp4", ".mov")
             db.add(Shot(project_id=project.id, shot_no=index, title="Pippit 生成素材 " + str(index),

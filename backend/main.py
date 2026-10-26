@@ -77,7 +77,13 @@ def resume_video_polling():
             .all()
         )
         for s in zombies:
-            s.video_status = "pending"
+            s.video_status = "failed" if (s.generation_manifest or {}).get("creationRequestId") else "pending"
+            if (s.generation_manifest or {}).get("creationRequestId"):
+                s.last_error = "服务重启时提交结果未确认，远端可能已产生费用；不会自动重复生成"
+        for s in db.query(Shot).filter(Shot.keyframe_url == "", Shot.video_status == "pending").all():
+            if (s.generation_manifest or {}).get("kind") == "image" and (s.generation_manifest or {}).get("creationRequestId"):
+                s.video_status = "failed"
+                s.last_error = "服务重启时图片请求未完成保存，远端可能已产生费用；不会自动重复生成"
         db.commit()
     finally:
         db.close()
@@ -159,3 +165,5 @@ from api import library as libraryApi
 app.include_router(libraryApi.router)
 from api import dreaminaCanvas as dreaminaCanvasApi
 app.include_router(dreaminaCanvasApi.router)
+from api import localCreation as localCreationApi
+app.include_router(localCreationApi.router)

@@ -91,11 +91,16 @@ async def analyze_project(db: Session, project_id: int, model: str | None = None
     p = db.get(Project, project_id)
     if not p or not (p.script_text or "").strip():
         raise gpt_service.GPTError("项目不存在或剧本为空", 400)
-    fingerprint = hashlib.sha256(json.dumps({"script": p.script_text, "ratio": (p.generation_settings or {}).get("aspect_ratio")}, ensure_ascii=False).encode()).hexdigest()
+    fingerprint = hashlib.sha256(json.dumps({"script": p.script_text, "ratio": (p.generation_settings or {}).get("aspect_ratio"), "style": (p.generation_settings or {}).get("creativePreferences")}, ensure_ascii=False, sort_keys=True).encode()).hexdigest()
     state = readAnalysisState(db, p)
+    legacyFingerprint = hashlib.sha256(json.dumps({"script": p.script_text, "ratio": (p.generation_settings or {}).get("aspect_ratio")}, ensure_ascii=False).encode()).hexdigest()
+    if state.get("structureFingerprint") == legacyFingerprint and not (p.generation_settings or {}).get("creativePreferences"):
+        state["structureFingerprint"] = fingerprint
+        p.analysis_state = state
+        db.commit()
     if state.get("structureFingerprint") != fingerprint:
         if db.query(Shot).filter_by(project_id=project_id).first():
-            raise gpt_service.GPTError("剧本或比例已修改，不能复用旧分析进度；现有成果保留", 409)
+            raise gpt_service.GPTError("剧本、比例或风格已修改，不能复用旧分析进度；现有成果保留", 409)
         plan = splitAnalysisScript(p.script_text)
         p.analysis_state = {**state, "structureFingerprint": fingerprint, "structurePlan": plan, "structureNext": 0}
         db.commit()
@@ -128,8 +133,9 @@ async def analyzeSegment(db: Session, project_id: int, model, segment, segmentIn
     try:
         updateAnalysisProgress(db, p, f"正在分析剧本段 {segmentIndex+1}/{segmentTotal} · 第 {segment['episode']} 集，已完成部分已保存", "structure", segmentIndex, segmentTotal)
         known = {"characters": [c.name for c in p.characters], "scenes": [s.name for s in p.scenes], "props": [pr.name for pr in p.props]}
+        selectedStyle = ((p.generation_settings or {}).get("creativePreferences") or {}).get("stylePrompt", "")
         raw = await gpt_service.chat_completion(
-            db, BASE_SYSTEM_PROMPT + f"\n用户选定输出画幅：{(p.generation_settings or {}).get('aspect_ratio','9:16')}。本次只分析第 {segment['episode']} 集的一段原文，episodes 必须只返回一个对象；不要补写片段前后剧情。保持已有资产的唯一名称：{json.dumps(known, ensure_ascii=False)}。未包含的角色、场景、道具不要返回。对白必须完整，不压缩剧情，按自然语速安排4–12秒整数镜头。",
+            db, BASE_SYSTEM_PROMPT + f"\n用户选定输出画幅：{(p.generation_settings or {}).get('aspect_ratio','9:16')}。用户选定视觉风格：{selectedStyle or '根据原文确定'}。本次只分析第 {segment['episode']} 集的一段原文，episodes 必须只返回一个对象；不要补写片段前后剧情。保持已有资产的唯一名称：{json.dumps(known, ensure_ascii=False)}。未包含的角色、场景、道具不要返回。对白必须完整，不压缩剧情，按自然语速安排4–12秒整数镜头。",
             segment["text"],
             stage="script", model=model, json_mode=True, max_tokens=128000,
         )
@@ -208,7 +214,7 @@ async def analyzeSegment(db: Session, project_id: int, model, segment, segmentIn
         db.add(outline)
     outline.title = outline.title or data.get("title", p.name)
     outline.synopsis = "\n".join(filter(None, [outline.synopsis, data.get("synopsis", "")]))
-    outline.video_style = outline.video_style or data.get("video_style", "")
+    outline.video_style = selectedStyle or outline.video_style or data.get("video_style", "")
     outline.aspect_ratio = (p.generation_settings or {}).get("aspect_ratio") or data.get("aspect_ratio", "9:16")
     outline.story_type = data.get("story_type", "")
     outline.target_audience = data.get("target_audience", "")
