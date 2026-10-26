@@ -330,7 +330,7 @@ async def submit_run(body: SubmitRequest, db: Session = Depends(get_db)):
                             message=body.message, web_thread_link=result.get("web_thread_link", ""))
     db.add(task)
     db.commit()
-    return result
+    return conversationSnapshot(db, task, result)
 
 
 @router.post("/thread")
@@ -363,7 +363,35 @@ async def get_thread(body: ThreadRequest, db: Session = Depends(get_db)):
             db.commit()
         if binding:
             result["binding"] = binding
+    return conversationSnapshot(db, task, result) if task and task.thread_id == body.thread_id and body.after_seq == 0 else result
+
+
+def conversationSnapshot(db, task, snapshot=None):
+    result = dict(snapshot if snapshot is not None else (task.result or {}))
+    result.setdefault("status", task.status)
+    messages = []
+    seen = set()
+    for item in db.query(pippitTaskRecord).filter_by(thread_id=task.thread_id).filter(pippitTaskRecord.id <= task.id).order_by(pippitTaskRecord.id).all():
+        current = result if item.id == task.id else (item.result or {})
+        entries = current.get("messages") or []
+        hasUserMessage = any(entry.get("role") == "user" and any(isinstance(part, dict) and part.get("data") == item.message for part in entry.get("content", []) or []) for entry in entries if isinstance(entry, dict))
+        if not hasUserMessage:
+            entries = [{"id": f"local-{item.run_id}", "role": "user", "content": [{"type": "text", "data": item.message}]}, *entries]
+        for entry in entries:
+            if not isinstance(entry, dict): continue
+            key = hashlib.sha256(json.dumps(entry, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
+            if key not in seen:
+                messages.append({**entry, "displayId": key})
+                seen.add(key)
+    result["conversation_messages"] = messages
     return result
+
+
+@router.get("/tasks/{runId}")
+def savedTask(runId: str, db: Session = Depends(get_db)):
+    task = db.query(pippitTaskRecord).filter_by(run_id=runId).first()
+    if not task: raise HTTPException(404, "会话记录不存在")
+    return conversationSnapshot(db, task)
 
 
 @router.get("/tasks")
