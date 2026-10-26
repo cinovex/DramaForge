@@ -43,7 +43,9 @@ async def on_startup():
         for project in db.query(Project).filter_by(status="analyzing").all():
             state = project.analysis_state or {}
             project.status = state.get("previous_status") or ("ready" if project.outline else "draft")
-            project.analysis_state = {**state, "status": "failed", "error": "服务重启中断分析，请重新开始；现有媒体保留"}
+            units = {key: {**unit, "status": "interrupted", "error": "服务重启时请求未确认完成，远端可能已消耗额度；继续将重试本项"} if unit.get("status") == "running" else unit for key, unit in (state.get("units") or {}).items()}
+            project.analysis_state = {**state, "units": units, "status": "paused", "pauseRequested": False,
+                                      "progress": "服务重启后已暂停，已保存内容保留", "error": "尚未返回的文本请求可能已消耗额度，继续时会重试未保存项；不会自动重新调用付费接口"}
         db.commit()
 
 

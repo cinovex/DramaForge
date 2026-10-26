@@ -26,7 +26,7 @@
         :saveNode="saveDocumentNode" />
     </keep-alive>
     <workspaceMenu class="workspaceMenu" />
-    <section v-if="analysisProject && !analysisDismissed && (analysisProject.status === 'analyzing' || analysisProject.analysis_state?.status === 'failed' || analysisProject.analysis_state?.status === 'done')" class="analysisStatus" aria-label="剧本分析进度">
+    <section v-if="analysisProject && !analysisDismissed && (analysisProject.status === 'analyzing' || ['failed', 'paused', 'done'].includes(analysisProject.analysis_state?.status || ''))" class="analysisStatus" aria-label="剧本分析进度">
       <header class="analysisHeader" :class="{ episodeHeader: isEpisodeEditor }">
         <button class="analysisBack" type="button" :aria-label="isEpisodeEditor ? '返回剧集' : '返回项目资源'" @click="isEpisodeEditor ? selectedEpisode = null : router.push('/home?section=projects')">‹</button>
         <span class="analysisProjectName">{{ isEpisodeEditor ? `第 ${selectedEpisode} 集 · ${analysisProject.name}` : analysisProject.name }}</span>
@@ -75,22 +75,32 @@
         <div class="analysisStage" :class="{ running: analysisProject.status === 'analyzing' }">
           <div class="analysisStageContent" role="status" aria-live="polite">
             <div v-if="analysisProject.status === 'analyzing'" class="analysisActivity" aria-hidden="true"><i /><i /><i /></div>
-            <h2>{{ analysisProject.status === 'analyzing' ? analysisProject.analysis_state?.progress || '正在深入分析脚本…' : analysisProject.analysis_state?.status === 'failed' ? '分析暂未完成' : '脚本分析完成' }}</h2>
-            <p v-if="analysisProject.analysis_state?.status === 'failed'" class="analysisError">{{ analysisProject.analysis_state.error }}</p>
-            <p v-else>{{ analysisProject.status === 'analyzing' ? analysisProject.analysis_state?.counts ? '分析结果会自动保存，完成后即可进入画布继续创作' : '你的脚本可能需要一些时间才能阅读完成' : '故事、制作资产与分镜已整理完成' }}</p>
+            <h2>{{ analysisProject.status === 'analyzing' ? analysisProject.analysis_state?.progress || '正在深入分析脚本…' : analysisProject.analysis_state?.status === 'paused' ? '已暂停，完成部分已保存' : '分析暂未完成' }}</h2>
+            <p v-if="analysisProject.analysis_state?.error" class="analysisError">{{ analysisProject.analysis_state.error }}</p>
+            <p v-else>完成一项即保存一项。暂停后可在设置中更换文本 API，再继续未完成项；当前已提交的请求结束并保存后才会暂停。</p>
             <div v-if="analysisProject.analysis_state?.counts" class="analysisCounts"><span v-for="(label, key) in analysisCountLabels" :key="key">{{ label }} <b>{{ analysisProject.analysis_state.counts[key] ?? 0 }}</b></span></div>
             <div v-if="analysisProject.analysis_state?.total" class="analysisProgress">
               <el-progress :percentage="Math.min(100, Math.round((analysisProject.analysis_state.completed ?? 0) / analysisProject.analysis_state.total * 100))" :showText="false" :strokeWidth="3" />
               <span>已完成 {{ analysisProject.analysis_state.completed ?? 0 }} / {{ analysisProject.analysis_state.total }}</span>
             </div>
             <div class="analysisActions">
-              <el-button v-if="analysisProject.analysis_state?.status === 'failed'" round :loading="analysisRetrying" @click="retryAnalysis">重新分析</el-button>
-              <el-button v-if="analysisProject.status !== 'analyzing'" round @click="analysisDismissed = true">查看画布</el-button>
+              <el-button v-if="analysisProject.status === 'analyzing'" round :disabled="analysisProject.analysis_state?.pauseRequested" :loading="analysisRetrying" @click="pauseAnalysis">{{ analysisProject.analysis_state?.pauseRequested ? '当前请求保存后暂停' : '暂停后续任务' }}</el-button>
+              <el-button v-else round :loading="analysisRetrying" @click="retryAnalysis">继续未完成项</el-button>
+              <el-button v-if="analysisProject.status !== 'analyzing'" round @click="settingsInitialPanel = 'languageModel'; settingsVisible = true">更换 API 配置</el-button>
+              <el-button round @click="analysisDismissed = true">查看已保存画布</el-button>
               <el-button v-if="analysisRefreshError" round @click="refreshDramaForgeProject(String(analysisProject.id))">刷新状态</el-button>
             </div>
             <p v-if="analysisRefreshError" role="alert">{{ analysisRefreshError }}</p>
           </div>
         </div>
+        <section v-if="analysisUnits.length" class="analysisTaskList" aria-label="已保存任务与来源">
+          <h2>任务与已保存成果</h2><p>已保存 {{ analysisUnits.filter(unit => unit.status === 'done').length }} 项；下列任务不包含图片或视频生成。</p>
+          <div v-for="unit in analysisUnits" :key="unit.id" class="analysisTaskRow"><strong>{{ unit.label }}</strong><span>{{ analysisUnitLabels[unit.status] || unit.status }}</span><small>{{ [unit.source?.provider, unit.source?.model].filter(Boolean).join(' · ') }}</small><small v-if="unit.error">{{ unit.error }}</small></div>
+        </section>
+        <section v-if="analysisProject.shots?.length" class="partialAnalysisResults" aria-label="已保存的部分分析结果">
+          <h2>已保存内容</h2><div class="resultTabs"><button v-for="tab in resultTabs" :key="tab.key" type="button" :class="{ active: resultTab === tab.key }" @click="resultTab = tab.key">{{ tab.label }} {{ resultItemsFor(tab.key).length }}</button></div>
+          <div class="partialResultGrid"><button v-for="item in resultItemsFor(resultTab)" :key="item.id" type="button" @click="selectedResult = item"><strong>{{ item.name }}</strong><span>{{ item.description }}</span><small>{{ Object.keys(item.design || {}).length ? '已保存设定 · 点击查看' : '已提取 · 详细设计待完成' }}</small></button></div>
+        </section>
       </div>
     </section>
     <el-dialog :modelValue="!!selectedResult" :title="selectedResult?.name" width="760px" class="analysisResultDialog" @close="selectedResult = null">
@@ -105,7 +115,7 @@
           </span>
         </template>
       </el-segmented>
-      <el-button v-if="analysisProject?.analysis_state?.status === 'done'" class="analysisResultsButton" round size="small" @click="analysisDismissed = false">分析结果</el-button>
+      <el-button v-if="analysisProject?.analysis_state?.status" class="analysisResultsButton" round size="small" @click="analysisDismissed = false">{{ analysisProject.analysis_state.status === 'done' ? '分析结果' : '分析进度' }}</el-button>
       <el-button round size="small" @click="router.push({ path: '/home', query: { section: 'dreamina', projectId: analysisProject?.id } })">即梦画布</el-button>
       <div class="bottomTools">
         <el-card v-if="activePanel === 'canvas'" class="toolMenu" shadow="never" :bodyStyle="{ padding: '3px 6px' }">
@@ -182,7 +192,7 @@
       </div>
     </div>
     <floatingAgent v-model="agentVisible" @resize="agentWidth = $event" />
-    <settings v-model="settingsVisible" @closed="notifySettingsClosed" />
+    <settings v-model="settingsVisible" :initialPanel="settingsInitialPanel" @closed="notifySettingsClosed" />
     <pippitCreator v-model="pippitVisible" @insertAssets="insertPippitAssets" />
     <el-dialog v-model="contactVisible" :title="contactInfo.title" width="min(360px, calc(100vw - 32px))" alignCenter appendToBody>
       <div class="contactContent">
@@ -249,6 +259,7 @@ const panelOptions = [
 const agentVisible = ref(!route.query.dramaforgeProjectId);
 const agentWidth = ref(0);
 const settingsVisible = ref(route.query.settings === "1");
+const settingsInitialPanel = ref("");
 const pippitVisible = ref(false);
 function notifySettingsClosed() {
   window.dispatchEvent(new Event("toonflow:settings-closed"));
@@ -308,7 +319,7 @@ type DramaForgeProject = {
   status?: string;
   workspace_directory?: string;
   outline?: { title?: string };
-  analysis_state?: { status?: string; progress?: string; error?: string; completed?: number; total?: number; counts?: Record<string, number> };
+  analysis_state?: { status?: string; progress?: string; error?: string; completed?: number; total?: number; counts?: Record<string, number>; pauseRequested?: boolean; units?: Record<string, { id: string; label: string; status: string; error?: string; source?: { provider?: string; model?: string } }> };
   shots?: unknown[];
   [key: string]: unknown;
 };
@@ -628,6 +639,21 @@ async function retryAnalysis() {
   finally { analysisRetrying.value = false; }
 }
 
+const analysisUnits = computed(() => Object.values(analysisProject.value?.analysis_state?.units || {}));
+const analysisUnitLabels: Record<string, string> = { running: '进行中', done: '已保存', failed: '未完成', interrupted: '请求中断 · 待确认重试' };
+async function pauseAnalysis() {
+  if (!analysisProject.value || analysisRetrying.value) return;
+  analysisRetrying.value = true;
+  try {
+    const response = await fetch(dramaForgeApiUrl(`projects/${analysisProject.value.id}/analysis/pause`), { method: 'POST' });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.detail || '暂停失败');
+    ElMessage.success(result.message);
+    await refreshDramaForgeProject(String(analysisProject.value.id));
+  } catch (error) { ElMessage.error(error instanceof Error ? error.message : '暂停失败'); }
+  finally { analysisRetrying.value = false; }
+}
+
 function dramaForgeCanvasSignature(project: DramaForgeProject) {
   return JSON.stringify({
     script: project.script_text,
@@ -931,6 +957,9 @@ function saveDocumentNode(directory: string, canvasPath: string, nodeId: string,
       }
     }
     .analysisBody {
+      .analysisTaskList, .partialAnalysisResults { margin-top: 28px; padding: 24px; border: 1px solid var(--el-border-color-lighter); border-radius: 20px; background: var(--el-bg-color); h2 { font-size: 17px; font-weight: 500; margin: 0 0 14px; } > p { color: var(--el-text-color-secondary); font-size: 12px; } }
+      .analysisTaskRow { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; padding: 12px 0; border-top: 1px solid var(--el-border-color-lighter); font-size: 12px; strong { flex: 1; min-width: 180px; font-weight: 500; } span { color: var(--el-color-primary); } small { color: var(--el-text-color-secondary); } }
+      .partialResultGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px; margin-top: 18px; button { display: flex; flex-direction: column; gap: 10px; text-align: left; padding: 16px; border-radius: 14px; border: 1px solid var(--el-border-color); color: inherit; background: var(--el-fill-color-extra-light); cursor: pointer; strong { font-size: 13px; font-weight: 500; } span { white-space: pre-wrap; font-size: 12px; max-height: 90px; overflow: hidden; } small { color: var(--el-text-color-secondary); } } }
       width: min(960px, calc(100% - 64px)); margin: 54px auto;
       h1 { font-size: 28px; font-weight: 500; margin: 0 0 34px; }
       .analysisStage {

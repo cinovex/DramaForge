@@ -86,25 +86,51 @@ BASE_SYSTEM_PROMPT = SYSTEM_PROMPT + "\n" + IMAGE_PROMPT_SKILL + "\n" + ANALYSIS
 
 
 async def analyze_project(db: Session, project_id: int, model: str | None = None, already_started: bool = False) -> dict:
+    import hashlib
+    from services.analysisTasks import splitAnalysisScript, checkAnalysisPause, readAnalysisState
+    p = db.get(Project, project_id)
+    if not p or not (p.script_text or "").strip():
+        raise gpt_service.GPTError("项目不存在或剧本为空", 400)
+    fingerprint = hashlib.sha256(json.dumps({"script": p.script_text, "ratio": (p.generation_settings or {}).get("aspect_ratio")}, ensure_ascii=False).encode()).hexdigest()
+    state = readAnalysisState(db, p)
+    if state.get("structureFingerprint") != fingerprint:
+        if db.query(Shot).filter_by(project_id=project_id).first():
+            raise gpt_service.GPTError("剧本或比例已修改，不能复用旧分析进度；现有成果保留", 409)
+        plan = splitAnalysisScript(p.script_text)
+        p.analysis_state = {**state, "structureFingerprint": fingerprint, "structurePlan": plan, "structureNext": 0}
+        db.commit()
+    else:
+        plan = state.get("structurePlan") or splitAnalysisScript(p.script_text)
+    result = {}
+    for index, segment in enumerate(plan):
+        checkAnalysisPause(db, p)
+        if index < (p.analysis_state or {}).get("structureNext", 0):
+            continue
+        result = await analyzeSegment(db, project_id, model, segment, index, len(plan))
+    return result
+
+
+async def analyzeSegment(db: Session, project_id: int, model, segment, segmentIndex, segmentTotal) -> dict:
+    from services.analysisTasks import recordAnalysisUnit, readAnalysisState
     p = db.query(Project).get(project_id)
     if not p:
         raise gpt_service.GPTError("项目不存在", 404)
     if not p.script_text:
         raise gpt_service.GPTError("该项目没有剧本内容，无法解析", 400)
 
-    if p.status == "analyzing" and not already_started:
-        raise gpt_service.GPTError("项目正在分析", 409)
-    if db.query(Shot).filter_by(project_id=project_id).count():
-        raise gpt_service.GPTError("已有分镜请使用深化分析，保留现有作品", 409)
     p.status = "analyzing"
+    unitKey = f"structure-{segmentIndex}"
+    recordAnalysisUnit(db, p, unitKey, f"第 {segment['episode']} 集 · 剧本段 {segmentIndex+1}/{segmentTotal}", "running")
     db.commit()
 
     phase = "请求剧本结构分析"
     raw = ""
     try:
-        updateAnalysisProgress(db, p, f"已读取剧本 {len(p.script_text):,} 字，正在请求模型提取故事、分集、角色、场景和道具；等待完整结果", "structure")
+        updateAnalysisProgress(db, p, f"正在分析剧本段 {segmentIndex+1}/{segmentTotal} · 第 {segment['episode']} 集，已完成部分已保存", "structure", segmentIndex, segmentTotal)
+        known = {"characters": [c.name for c in p.characters], "scenes": [s.name for s in p.scenes], "props": [pr.name for pr in p.props]}
         raw = await gpt_service.chat_completion(
-            db, BASE_SYSTEM_PROMPT + f"\n用户选定输出画幅：{(p.generation_settings or {}).get('aspect_ratio','9:16')}，所有构图与提示词须符合此比例。不要假定固定总时长，也不要为凑时长压缩或扩写剧情；根据剧本实际对白的自然语速、动作停顿和转场节奏安排4–12秒整数镜头。剧本中若明确标注集数或时长则尊重该信息；否则让镜头时长自然覆盖完整剧情，所有镜头 duration 之和就是本次分析得出的预计成片时长。对白必须能在相应镜头时长内自然说完。", p.script_text,
+            db, BASE_SYSTEM_PROMPT + f"\n用户选定输出画幅：{(p.generation_settings or {}).get('aspect_ratio','9:16')}。本次只分析第 {segment['episode']} 集的一段原文，episodes 必须只返回一个对象；不要补写片段前后剧情。保持已有资产的唯一名称：{json.dumps(known, ensure_ascii=False)}。未包含的角色、场景、道具不要返回。对白必须完整，不压缩剧情，按自然语速安排4–12秒整数镜头。",
+            segment["text"],
             stage="script", model=model, json_mode=True, max_tokens=128000,
         )
         phase = "解析模型返回的剧本结构"
@@ -112,6 +138,17 @@ async def analyze_project(db: Session, project_id: int, model: str | None = None
         data = _parse_json(raw)
         if not isinstance(data, dict) or not data.get("episodes"):
             raise ValueError("模型返回了空对象或缺少 episodes 分镜列表")
+        if len(data["episodes"]) != 1:
+            raise ValueError("本段必须返回一个分集对象，避免改变原剧本集序")
+        for field in ("characters", "scenes", "props"):
+            items = data.get(field, [])
+            if not isinstance(items, list) or any(not isinstance(item, dict) or not isinstance(item.get("name"), str) or not item["name"].strip() for item in items):
+                raise ValueError(f"{field} 资产名称不完整")
+            if len({item["name"].strip() for item in items}) != len(items):
+                raise ValueError(f"{field} 资产名称重复")
+            for item in items: item["name"] = item["name"].strip()
+        characterNames = set(known["characters"]) | {item["name"] for item in data.get("characters", [])}
+        sceneNames = set(known["scenes"]) | {item["name"] for item in data.get("scenes", [])}
         phase = "校验角色、场景和分镜字段"
         updateAnalysisProgress(db, p, f"正在校验 {len(data['episodes'])} 集剧本、角色、场景和分镜", "validation")
         for c in data.get("characters", []):
@@ -123,6 +160,12 @@ async def analyze_project(db: Session, project_id: int, model: str | None = None
             if not ep.get("shots"): raise ValueError("分镜为空")
             normalized=[]
             for shot in ep["shots"]:
+                if not isinstance(shot, dict) or not isinstance(shot.get("prompt"), str) or not shot["prompt"].strip():
+                    raise ValueError("分镜提示词不完整")
+                if not isinstance(shot.get("characters", []), list) or any(name not in characterNames for name in shot.get("characters", [])):
+                    raise ValueError("分镜引用了未登记角色")
+                if shot.get("scene") and shot["scene"] not in sceneNames:
+                    raise ValueError("分镜引用了未登记场景")
                 duration=round(float(shot.get("duration",7)))
                 if duration < 4 or duration > 120: raise ValueError("无效时长")
                 parts=max(1,(duration+11)//12)
@@ -143,12 +186,8 @@ async def analyze_project(db: Session, project_id: int, model: str | None = None
                 shot["direction"]["timeline"] = fit_timeline(shot["direction"]["timeline"],duration) if shot["direction"].get("timeline") else ""
                 if shot["direction"].get("lighting"): validate_direction(shot["direction"], duration)
     except gpt_service.GPTError:
-        p.status = "draft"
-        db.commit()
         raise
     except (ValueError, TypeError, AttributeError, ValidationError) as error:
-        p.status = "draft"
-        db.commit()
         if isinstance(error, json.JSONDecodeError):
             reason = "JSON 不完整，可能是模型输出被截断" if error.pos >= max(0, len(raw)-2) else f"JSON 格式错误（第 {error.lineno} 行）"
         elif isinstance(error, ValidationError):
@@ -167,23 +206,35 @@ async def analyze_project(db: Session, project_id: int, model: str | None = None
     if not outline:
         outline = Outline(project_id=project_id)
         db.add(outline)
-    outline.title = data.get("title", p.name)
-    outline.synopsis = data.get("synopsis", "")
-    outline.video_style = data.get("video_style", "")
+    outline.title = outline.title or data.get("title", p.name)
+    outline.synopsis = "\n".join(filter(None, [outline.synopsis, data.get("synopsis", "")]))
+    outline.video_style = outline.video_style or data.get("video_style", "")
     outline.aspect_ratio = (p.generation_settings or {}).get("aspect_ratio") or data.get("aspect_ratio", "9:16")
     outline.story_type = data.get("story_type", "")
     outline.target_audience = data.get("target_audience", "")
-    outline.raw_data = data
-
-    # ---- 清旧资产/分镜，避免重复 ----
-    db.query(Character).filter_by(project_id=project_id).delete()
-    db.query(Scene).filter_by(project_id=project_id).delete()
-    db.query(Prop).filter_by(project_id=project_id).delete()
-    db.query(Shot).filter_by(project_id=project_id).delete()
+    existingData = dict(outline.raw_data or {})
+    episodes = [dict(ep) for ep in existingData.get("episodes", [])]
+    incomingEpisode = {**data["episodes"][0], "ep_no": segment["episode"]}
+    existingEpisode = next((ep for ep in episodes if ep.get("ep_no") == segment["episode"]), None)
+    shotOffset = len(existingEpisode.get("shots", [])) if existingEpisode else 0
+    for index, shot in enumerate(incomingEpisode["shots"], shotOffset+1): shot["shot_no"] = index
+    if existingEpisode:
+        existingEpisode["shots"] = [*existingEpisode.get("shots", []), *incomingEpisode["shots"]]
+        existingEpisode["summary"] = "\n".join(filter(None, [existingEpisode.get("summary"), incomingEpisode.get("summary")]))
+        existingEpisode["ending_hook"] = incomingEpisode.get("ending_hook", "")
+        existingEpisode["estimated_duration"] = sum(sh["duration"] for sh in existingEpisode["shots"])
+    else:
+        episodes.append(incomingEpisode)
+    merged = {**data, **existingData, "episodes": episodes,
+              "analysis_segments": [*existingData.get("analysis_segments", []), {"index": segmentIndex, "episode": segment["episode"], "story_analysis": data.get("story_analysis", {})}]}
+    for field in ("characters", "scenes", "props"):
+        merged[field] = list({item["name"]: item for item in [*data.get(field, []), *existingData.get(field, [])]}.values())
+    outline.raw_data = merged
 
     # ---- 角色 ----
     char_count = 0
     for c in data.get("characters", []):
+        if db.query(Character).filter_by(project_id=project_id, name=c["name"]).first(): continue
         db.add(Character(project_id=project_id,
                          name=c.get("name", ""),
                          description=c.get("description", ""), design=c["design"]))
@@ -192,6 +243,7 @@ async def analyze_project(db: Session, project_id: int, model: str | None = None
     # ---- 场景 ----
     scene_count = 0
     for s in data.get("scenes", []):
+        if db.query(Scene).filter_by(project_id=project_id, name=s["name"]).first(): continue
         db.add(Scene(project_id=project_id,
                      name=s.get("name", ""),
                      description=s.get("description", ""), design=s["design"]))
@@ -200,6 +252,7 @@ async def analyze_project(db: Session, project_id: int, model: str | None = None
     # ---- 道具 ----
     prop_count = 0
     for pr in data.get("props", []):
+        if db.query(Prop).filter_by(project_id=project_id, name=pr["name"]).first(): continue
         db.add(Prop(project_id=project_id,
                     name=pr.get("name", ""),
                     description=pr.get("description", "")))
@@ -208,7 +261,7 @@ async def analyze_project(db: Session, project_id: int, model: str | None = None
     # ---- 分镜 ----
     shot_count = 0
     for ep in data.get("episodes", []):
-        ep_no = ep.get("ep_no", 1)
+        ep_no = segment["episode"]
         for sh in ep.get("shots", []):
             db.add(Shot(
                 project_id=project_id,
@@ -225,11 +278,15 @@ async def analyze_project(db: Session, project_id: int, model: str | None = None
             ))
             shot_count += 1
 
-    p.status = "ready"
+    recordAnalysisUnit(db, p, unitKey, f"第 {segment['episode']} 集 · 剧本段 {segmentIndex+1}/{segmentTotal}", "done")
+    # recordAnalysisUnit reloads state; advance the checkpoint in the same result transaction.
+    p.analysis_state = {**p.analysis_state, "structureNext": segmentIndex+1}
+    p.status = "analyzing"
     db.commit()
-    updateAnalysisProgress(db, p, f"故事结构已完成：{len(data.get('episodes', []))} 集，{char_count} 个角色，{scene_count} 个场景，{prop_count} 个道具，{shot_count} 个分镜", "assets",
-                           counts={"episodes": len(data.get("episodes", [])), "characters": char_count,
-                                   "scenes": scene_count, "props": prop_count, "shots": shot_count})
+    counts = {"episodes": len(episodes), "characters": db.query(Character).filter_by(project_id=project_id).count(),
+              "scenes": db.query(Scene).filter_by(project_id=project_id).count(), "props": db.query(Prop).filter_by(project_id=project_id).count(),
+              "shots": db.query(Shot).filter_by(project_id=project_id).count()}
+    updateAnalysisProgress(db, p, f"剧本段已保存 {segmentIndex+1}/{segmentTotal}，已提取 {counts['shots']} 个分镜", "structure", segmentIndex+1, segmentTotal, counts)
 
     return {
         "project_id": project_id,

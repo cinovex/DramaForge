@@ -24,6 +24,7 @@ class ProjectCreate(BaseModel):
 def list_projects(db: Session = Depends(get_db)):
     return [{**{column.name: getattr(project, column.name) for column in Project.__table__.columns},
              "workspace_directory": str(project_directory(project.id)),
+             "analysis_state": {k: v for k, v in (project.analysis_state or {}).items() if k not in ("staged", "fingerprint", "structurePlan", "structureFingerprint")},
              "project_type": (project.generation_settings or {}).get("project_type", "drama")}
             for project in db.query(Project).order_by(Project.created_at.desc()).all()]
 
@@ -41,7 +42,7 @@ def get_project(project_id: int, db: Session = Depends(get_db)):
         "workspace_directory": str(ensure_project_directory(p.id)),
         "script_text": p.script_text, "generation_settings": effective_options(p),
         "planned_duration": sum(sh.duration or 0 for sh in p.shots),
-        "canvas_state": p.canvas_state or {}, "analysis_state": {k: v for k, v in (p.analysis_state or {}).items() if k not in ("staged", "fingerprint")},
+        "canvas_state": p.canvas_state or {}, "analysis_state": {k: v for k, v in (p.analysis_state or {}).items() if k not in ("staged", "fingerprint", "structurePlan", "structureFingerprint")},
         "created_at": p.created_at.isoformat() if p.created_at else None,
         "outline": {
             "title": p.outline.title, "synopsis": p.outline.synopsis,
@@ -229,6 +230,8 @@ def create_project(body: ProjectCreate, db: Session = Depends(get_db)):
 
 @router.post("/upload/{project_id}")
 async def upload_script(project_id: int, file: UploadFile = File(...), db: Session = Depends(get_db)):
+    from services.director_design import ensure_project_idle
+    ensure_project_idle(project_id, db)
     p = db.query(Project).get(project_id)
     if not p:
         raise HTTPException(404, "项目不存在")

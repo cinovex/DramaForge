@@ -1,4 +1,5 @@
 def updateAnalysisProgress(db, project, message, phase, completed=0, total=0, counts=None):
+    db.expire(project, ["analysis_state"])
     state = {**(project.analysis_state or {}), "progress": message, "phase": phase,
              "completed": completed, "total": total}
     if counts is not None:

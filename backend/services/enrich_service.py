@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from models.drama import Project, Character, Scene, Prop, Shot
 from services.analysisProgress import updateAnalysisProgress
 from services import gpt_service
+from services.analysisTasks import checkAnalysisPause, readAnalysisState, recordAnalysisUnit
 from services.analyze_service import _parse_json
 from services.director_design import DIRECTOR_RULES, schema_hint, CharacterDesign, SceneDesign, ShotDirection, validate_direction, validate_character, fit_timeline
 
@@ -110,24 +111,42 @@ async def enrich_project(db: Session, project_id: int, model: str | None = None,
         asset_schema = {k:v for k,v in json.loads(schema_hint()).items() if k != "shot_direction"}
         asset_system = DIRECTOR_RULES.split("镜头：",1)[0] + "\n本次只分析输入的角色与场景，不分析镜头，不输出shots字段。严格输出 {characters:[{id,design}],scenes:[{id,design}]}。每个ID必须与输入完全一致。\n" + json.dumps(asset_schema,ensure_ascii=False)
         # 资产独立分析，镜头按小批次分析，减少长输出被截断。
-        results = []
         source_signature = hashlib.sha256(json.dumps({
+            "checkpointVersion": 2,
             "script": project.script_text,
+            "visual": [project.outline.video_style if project.outline else "", project.outline.aspect_ratio if project.outline else ""],
             "cast": char_input,
             "scenes": scene_input,
             "shots": [(sh.id, sh.episode_no, sh.shot_no, sh.title, sh.duration, sh.scene_name,
-                       sh.character_names, sh.prompt, sh.keyframe_prompt, sh.direction) for sh in shots],
+                       sh.character_names) for sh in shots],
         }, ensure_ascii=False, sort_keys=True).encode()).hexdigest()
         state = project.analysis_state or {}
-        staged = dict(state.get("staged", {})) if state.get("fingerprint") == source_signature else {}
+        legacySignature = hashlib.sha256(json.dumps({"script": project.script_text, "cast": char_input, "scenes": scene_input,
+            "shots": [(sh.id, sh.episode_no, sh.shot_no, sh.title, sh.duration, sh.scene_name, sh.character_names, sh.prompt, sh.keyframe_prompt, sh.direction) for sh in shots]}, ensure_ascii=False, sort_keys=True).encode()).hexdigest()
+        staged = dict(state.get("staged", {})) if state.get("fingerprint") in {source_signature, legacySignature} else {}
+        if state.get("fingerprint") == source_signature:
+            for key, cachedResult in list(staged.items()):
+                changed = any(db.get(Character, item["id"]).design != item["design"] for item in cachedResult.get("characters", []))
+                changed |= any(db.get(Scene, item["id"]).design != item["design"] for item in cachedResult.get("scenes", []))
+                changed |= any(any(getattr(db.get(Shot, item["id"]), field) != item[field] for field in ("direction", "prompt", "keyframe_prompt")) for item in cachedResult.get("shots", []))
+                if changed: staged.pop(key)
         def checkpoint(key, result):
-            if already_started:
-                staged[key] = result.model_dump()
-                project.analysis_state = {**(project.analysis_state or {}), "fingerprint": source_signature, "staged": dict(staged)}
-                db.commit()
+            recordAnalysisUnit(db, project, key, unitLabel, "done")
+            staged[key] = result.model_dump()
+            project.analysis_state = {**(project.analysis_state or {}), "fingerprint": source_signature, "staged": dict(staged)}
+            for c in result.characters:
+                db.get(Character, c.id).design = c.design.model_dump()
+            for s in result.scenes:
+                db.get(Scene, s.id).design = s.design.model_dump()
+            for sh in result.shots:
+                target = db.get(Shot, sh.id)
+                target.direction = sh.direction.model_dump()
+                target.keyframe_prompt = sh.keyframe_prompt
+                target.prompt = sh.prompt
+            db.commit()
         def progress(message, completed=0, total=0):
             if already_started:
-                project.analysis_state = {**(project.analysis_state or {}), "progress": message,
+                project.analysis_state = {**readAnalysisState(db, project), "progress": message,
                                           "phase": "design", "completed": completed, "total": total}
                 db.commit()
         asset_batches = max(len(chars), len(scenes))
@@ -137,11 +156,16 @@ async def enrich_project(db: Session, project_id: int, model: str | None = None,
                                        "scenes": len(scenes), "props": db.query(Prop).filter_by(project_id=project_id).count(), "shots": len(shots)})
         progress("分析角色多视图、表情与场景光线")
         for index in range(max(len(chars), len(scenes))):
+            checkAnalysisPause(db, project)
             current_chars = chars[index:index+1]
             current_scenes = scenes[index:index+1]
             names = [f"角色 {c.name}" for c in current_chars] + [f"场景 {s.name}" for s in current_scenes]
             progress(f"正在生成{'、'.join(names)}的设计 · 资产批次 {index+1}/{asset_batches}", index, total_batches)
             cached = staged.get(f"assets-{index}")
+            unitLabel = "、".join(names) + " · 文字设计"
+            if not cached:
+                recordAnalysisUnit(db, project, f"assets-{index}", unitLabel, "running")
+                db.commit()
             raw = json.dumps(cached, ensure_ascii=False) if cached else await gpt_service.chat_completion(db, asset_system,
                 json.dumps({"script": project.script_text,
                             "characters": char_input[index:index+1], "scenes": scene_input[index:index+1], "shots": []}, ensure_ascii=False),
@@ -179,9 +203,9 @@ async def enrich_project(db: Session, project_id: int, model: str | None = None,
             for c in result.characters:
                 validate_character(c.design.model_dump())
             checkpoint(f"assets-{index}", result)
-            results.append(result)
             progress(f"角色与场景设计已完成 {index+1}/{asset_batches} 批", index+1, total_batches)
         for start in range(0, len(shots), 1):
+            checkAnalysisPause(db, project)
             current_shot = shots[start]
             progress(f"正在生成第 {current_shot.episode_no} 集 · 镜头 {current_shot.shot_no} 的导演设计与提示词 · 分镜 {start+1}/{len(shots)}", asset_batches+start, total_batches)
             batch = shots[start:start+1]
@@ -189,6 +213,10 @@ async def enrich_project(db: Session, project_id: int, model: str | None = None,
                 return {"id": sh.id, "episode": sh.episode_no, "shot": sh.shot_no, "duration": sh.duration,
                         "title": sh.title, "scene": sh.scene_name, "characters": sh.character_names, "prompt": sh.prompt}
             cached = staged.get(f"shot-{start}")
+            unitLabel = f"第 {current_shot.episode_no} 集 · 分镜 {current_shot.shot_no} 设计"
+            if not cached:
+                recordAnalysisUnit(db, project, f"shot-{start}", unitLabel, "running")
+                db.commit()
             raw = json.dumps(cached, ensure_ascii=False) if cached else await gpt_service.chat_completion(db, system,
                 json.dumps({"script": project.script_text, "cast": char_input, "locations": scene_input,
                             "characters": [], "scenes": [], "shots": [describe(sh) for sh in batch],
@@ -228,23 +256,15 @@ async def enrich_project(db: Session, project_id: int, model: str | None = None,
                     # 不因措辞未包含固定关键词而废弃整个项目的有效结果。
                 validate_direction(sh.direction.model_dump(), next(s.duration for s in batch if s.id == sh.id))
             checkpoint(f"shot-{start}", result)
-            results.append(result)
             progress(f"分镜设计已完成 {start+1}/{len(shots)}", asset_batches+start+1, total_batches)
-        progress("正在保存角色、场景和全部分镜设计", total_batches, total_batches)
-        for result in results:
-            for c in result.characters:
-                db.get(Character, c.id).design = c.design.model_dump()
-            for s in result.scenes:
-                db.get(Scene, s.id).design = s.design.model_dump()
-            for sh in result.shots:
-                target = db.get(Shot, sh.id)
-                target.direction = sh.direction.model_dump()
-                target.keyframe_prompt = sh.keyframe_prompt
-                target.prompt = sh.prompt
+        progress("角色、场景和分镜设计已逐项保存", total_batches, total_batches)
         project.status = "done" if old_status == "done" else "ready"
         db.commit()
         return {"status": "ready", "characters": len(chars), "scenes": len(scenes), "shots": len(shots), "preserved": True}
     except Exception as error:
+        from services.analysisTasks import analysisPaused
+        if isinstance(error, analysisPaused):
+            raise
         if not isinstance(error, gpt_service.GPTError):
             from config import BASE_DIR
             debug_dir = BASE_DIR / "work"
@@ -253,8 +273,9 @@ async def enrich_project(db: Session, project_id: int, model: str | None = None,
                 "error": str(error), "response": locals().get("raw", "")}, ensure_ascii=False), encoding="utf-8")
         db.rollback()
         db.refresh(project)
-        project.status = old_status
-        db.commit()
+        if not already_started:
+            project.status = old_status
+            db.commit()
         if isinstance(error, gpt_service.GPTError): raise
         reason = "字段格式不符" if isinstance(error, ValidationError) else str(error)[:80]
         raise gpt_service.GPTError(f"深化分析结果不完整（{reason}），现有媒体保留，重试会跳过已完成批次", 502) from error

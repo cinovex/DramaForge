@@ -36,7 +36,7 @@
 </template>
 
 <script setup lang="ts">
-import { defineAsyncComponent, shallowRef } from "vue";
+import { defineAsyncComponent, shallowRef, watch } from "vue";
 import { hasDesktopUpdate } from "@/stores/desktopUpdate";
 import { isMobile } from "@/lib/platform";
 import {
@@ -73,7 +73,9 @@ const settingsPanels = [
   { id: "about", label: "关于", icon: IconInfoCircle, component: defineAsyncComponent(() => import("./panels/about.vue")) },
 ];
 const activePanel = shallowRef(settingsPanels[0]!);
+const props = defineProps<{ initialPanel?: string }>();
 const visible = defineModel<boolean>({ default: false });
+watch(visible, value => { if (value && props.initialPanel) activePanel.value = settingsPanels.find(panel => panel.id === props.initialPanel) || activePanel.value; });
 const emit = defineEmits<{ closed: [] }>();
 </script>
 

@@ -1,8 +1,11 @@
 """通用 GPT 文本调用（用 script 环节的配置，可插拔）"""
 import asyncio
 import httpx
+from contextvars import ContextVar
 from sqlalchemy.orm import Session
 from services.settings_service import get_stage_config
+
+executionConfig = ContextVar("analysisExecutionConfig", default=None)
 
 
 class GPTError(Exception):
@@ -23,7 +26,8 @@ async def chat_completion(
     max_tokens: int = 4096,
 ) -> str:
     """调用 script 环节配置的模型，返回文本内容"""
-    cfg = get_stage_config(db, stage)
+    cfg = executionConfig.get() if stage == "script" else None
+    cfg = cfg or get_stage_config(db, stage)
     if not cfg or not cfg.get("api_key"):
         raise GPTError("未配置剧本分析环节的 API Key，请到设置中心填写", 400)
 
