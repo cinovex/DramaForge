@@ -383,6 +383,7 @@ async function refreshStudioTask() {
   finally { pippitBusy.value = false; scheduleStudioPoll(); }
 }
 function sendStudioMessage(files: File[], options: StudioCreativeOptions) {
+  if (options.styleId === "custom" && !options.customStyle.trim()) options = { ...options, styleId: "none", customStyle: "" };
   if (options.modelId && options.modelId !== 'pippit') void submitLocalStudio(files, options);
   else void submitStudioTask(files, !!pippitTask.value && pippitTask.value.source !== 'local', options);
 }

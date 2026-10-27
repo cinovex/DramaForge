@@ -1,6 +1,6 @@
 <template>
   <el-popover v-model:visible="visible" placement="top-start" width="min(650px, calc(100vw - 32px))" trigger="click" :disabled="disabled">
-    <template #reference><el-button class="modelTrigger" text :disabled="disabled" aria-label="选择生成模型">{{ selected?.label || '智能选择' }}⌄</el-button></template>
+    <template #reference><el-button class="modelTrigger" text :disabled="disabled" aria-label="选择生成模型">{{ selected?.label || automaticLabel || 'Pippit · 自动模型' }}⌄</el-button></template>
     <section class="mediaModelPicker"><nav><button v-for="tab in [{ id: 'video', name: '视频' }, { id: 'image', name: '图片' }]" :key="tab.id" type="button" :class="{ active: tab.id === activeKind }" @click="activeKind = tab.id">{{ tab.name }}</button></nav>
       <div class="modelColumns"><div class="modelChoices"><small>模型</small><button type="button" :class="{ selected: modelValue === 'pippit' }" @click="choose({ id: 'pippit', label: 'Pippit 智能选择', kind: activeKind })"><strong>Pippit 智能选择 <span v-if="modelValue === 'pippit'">✓</span></strong><small>使用 Pippit 账号，由服务自动选择模型与技能</small></button><button v-for="item in items.filter(item => item.kind === activeKind)" :key="item.id" type="button" :class="{ selected: modelValue === item.id }" @click="choose(item)"><strong>{{ item.label }} <span v-if="modelValue === item.id">✓</span></strong><small>{{ item.provider }} · 独立 API</small></button><p v-if="!items.some(item => item.kind === activeKind)">暂无已配置的独立 API 模型，可先在设置中添加。</p></div>
       <div class="modelParameters"><small>纵横比</small><div class="ratioOptions"><button v-for="value in selected?.ratios || ['9:16','3:4','1:1','4:3','16:9','21:9']" :key="value" type="button" :class="{ selected: ratio === value }" @click="emit('update:ratio', value)"><i :style="{ aspectRatio: value.replace(':','/') }" />{{ value }}</button></div><small>分辨率</small><div class="parameterOptions"><span v-if="modelValue === 'pippit'">由 Pippit 自动决定</span><button v-for="value in selected?.resolutions || []" :key="value" type="button" :class="{ selected: resolution === value }" @click="emit('update:resolution', value)">{{ value.toLowerCase() }}</button></div><template v-if="selected?.kind === 'video' && modelValue !== 'pippit'"><small>时长</small><el-select :modelValue="duration" aria-label="视频时长" @change="emit('update:duration', $event)"><el-option v-for="value in 9" :key="value" :value="value + 3" :label="`${value+3} 秒`" /></el-select></template></div></div><p v-if="error" role="alert">{{ error }}</p><footer>独立 API 使用该供应商的额度；Pippit 官网内部模型目录未通过当前接口开放。</footer>
@@ -10,7 +10,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
-const props = defineProps<{ modelValue: string; ratio: string; resolution: string; duration: number; disabled?: boolean }>();
+const props = defineProps<{ modelValue: string; ratio: string; resolution: string; duration: number; automaticLabel?: string; disabled?: boolean }>();
 const emit = defineEmits<{ 'update:modelValue': [value: string]; 'update:ratio': [value: string]; 'update:resolution': [value: string]; 'update:duration': [value: number]; selectKind: [value: string] }>();
 type Model = { id: string; label: string; kind: string; provider?: string; ratios?: string[]; resolutions?: string[] };
 const items = ref<Model[]>([]);
