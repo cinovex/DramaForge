@@ -135,7 +135,7 @@ async def analyzeSegment(db: Session, project_id: int, model, segment, segmentIn
         known = {"characters": [c.name for c in p.characters], "scenes": [s.name for s in p.scenes], "props": [pr.name for pr in p.props]}
         selectedStyle = ((p.generation_settings or {}).get("creativePreferences") or {}).get("stylePrompt", "")
         raw = await gpt_service.chat_completion(
-            db, BASE_SYSTEM_PROMPT + f"\n用户选定输出画幅：{(p.generation_settings or {}).get('aspect_ratio','9:16')}。用户选定视觉风格：{selectedStyle or '根据原文确定'}。本次只分析第 {segment['episode']} 集的一段原文，episodes 必须只返回一个对象；不要补写片段前后剧情。保持已有资产的唯一名称：{json.dumps(known, ensure_ascii=False)}。未包含的角色、场景、道具不要返回。对白必须完整，不压缩剧情，按自然语速安排4–12秒整数镜头。",
+            db, BASE_SYSTEM_PROMPT + f"\n用户选定输出画幅：{(p.generation_settings or {}).get('aspect_ratio','9:16')}。用户选定视觉风格：{selectedStyle or '根据原文确定'}。本次只分析第 {segment['episode']} 集的一段原文，episodes 必须只返回一个对象；不要补写片段前后剧情。已有资产仅供复用，并非允许使用的完整清单：{json.dumps(known, ensure_ascii=False)}。本段出现的新角色、场景、道具必须追加到对应资产数组，不能因为未登记就省略。未在本段出现的既有资产不要返回。分镜的 scene 必须完全等于已有或本次新增场景的 name，不得添加“未登记”等说明性括号。对白必须完整，不压缩剧情，按自然语速安排4–12秒整数镜头。",
             segment["text"],
             stage="script", model=model, json_mode=True, max_tokens=128000,
         )
@@ -155,6 +155,37 @@ async def analyzeSegment(db: Session, project_id: int, model, segment, segmentIn
             for item in items: item["name"] = item["name"].strip()
         characterNames = set(known["characters"]) | {item["name"] for item in data.get("characters", [])}
         sceneNames = set(known["scenes"]) | {item["name"] for item in data.get("scenes", [])}
+        unresolvedScenes = {shot.get("scene") for episode in data["episodes"] for shot in episode.get("shots", []) if isinstance(shot, dict) and isinstance(shot.get("scene"), str) and shot["scene"] and shot["scene"] not in sceneNames}
+        if unresolvedScenes:
+            phase = "补全本段新场景及引用"
+            updateAnalysisProgress(db, p, f"正在核对 {len(unresolvedScenes)} 个新增场景引用，已完成分镜保持不变", "validation")
+            sceneRepairRaw = await gpt_service.chat_completion(
+                db,
+                "你负责校对剧本场景登记。根据原文核实未登记引用，只返回严格 JSON："
+                '{"scenes":[{"name":"场景名","description":"原文支持的地点与视觉事实；未交代的细节不得编造"}],"scene_references":{"原引用名":"校正后的场景名"}}。'
+                "已有地点沿用原名；新地点必须在 scenes 登记。去掉场景名中的说明性备注。不同空间不能强行合并；无依据的地点不要猜测，不要补剧情。",
+                json.dumps({"script": segment["text"], "existingScenes": known["scenes"], "declaredScenes": data.get("scenes", []), "unregisteredReferences": sorted(unresolvedScenes)}, ensure_ascii=False),
+                stage="script", model=model, json_mode=True, max_tokens=8192,
+            )
+            sceneRepair = _parse_json(sceneRepairRaw)
+            if not isinstance(sceneRepair, dict) or not isinstance(sceneRepair.get("scenes", []), list) or not isinstance(sceneRepair.get("scene_references", {}), dict):
+                raise ValueError("新增场景校对结果格式不正确")
+            for scene in sceneRepair.get("scenes", []):
+                if not isinstance(scene, dict) or not isinstance(scene.get("name"), str) or not scene["name"].strip() or not isinstance(scene.get("description"), str) or not scene["description"].strip():
+                    raise ValueError("新增场景缺少名称或原文描述")
+                scene["name"] = scene["name"].strip()
+                if scene["name"] not in sceneNames:
+                    data.setdefault("scenes", []).append(scene)
+                    sceneNames.add(scene["name"])
+            references = sceneRepair.get("scene_references", {})
+            for original in unresolvedScenes:
+                destination = references.get(original, original)
+                if not isinstance(destination, str) or destination not in sceneNames:
+                    raise ValueError(f"场景“{original}”仍未登记，已保存分镜保留")
+            for episode in data["episodes"]:
+                for shot in episode.get("shots", []):
+                    if isinstance(shot, dict) and shot.get("scene") in unresolvedScenes:
+                        shot["scene"] = references.get(shot["scene"], shot["scene"])
         phase = "校验角色、场景和分镜字段"
         updateAnalysisProgress(db, p, f"正在校验 {len(data['episodes'])} 集剧本、角色、场景和分镜", "validation")
         for c in data.get("characters", []):
@@ -171,7 +202,7 @@ async def analyzeSegment(db: Session, project_id: int, model, segment, segmentIn
                 if not isinstance(shot.get("characters", []), list) or any(name not in characterNames for name in shot.get("characters", [])):
                     raise ValueError("分镜引用了未登记角色")
                 if shot.get("scene") and shot["scene"] not in sceneNames:
-                    raise ValueError("分镜引用了未登记场景")
+                    raise ValueError(f"分镜引用了未登记场景：{shot['scene']}")
                 duration=round(float(shot.get("duration",7)))
                 if duration < 4 or duration > 120: raise ValueError("无效时长")
                 parts=max(1,(duration+11)//12)
@@ -204,7 +235,7 @@ async def analyzeSegment(db: Session, project_id: int, model, segment, segmentIn
         from config import BASE_DIR
         debug_dir=BASE_DIR/"work";debug_dir.mkdir(exist_ok=True)
         (debug_dir/f"analysis-debug-{project_id}.json").write_text(json.dumps({
-            "phase":phase,"error":reason,"response":raw[:12000]},ensure_ascii=False),encoding="utf-8")
+            "phase":phase,"error":reason,"response":raw},ensure_ascii=False),encoding="utf-8")
         raise gpt_service.GPTError(f"{phase}失败：{reason}。现有媒体不会被删除",502) from error
 
     # ---- 写大纲 ----
