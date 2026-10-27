@@ -330,6 +330,10 @@ async function startCreation() {
 }
 async function submitStudioTask(files?: File[], followup = false, options?: StudioCreativeOptions) {
   if (pippitBusy.value) return;
+  if (studioTab.value === "remix" && !followup) {
+    pippitError.value = "Pippit 官网专用重制转绘尚未接通：当前公开接口不能指定原片解析流程。本次不会上传视频、提交通用创作或扣除积分。";
+    return;
+  }
   if (!pippitMessage.value.trim()) return ElMessage.warning("请输入创作需求或回复");
   const fromHome = creationMode.value !== "script";
   const references = files || (fromHome ? promptAttachments.value.map(item => item.file!) : []);

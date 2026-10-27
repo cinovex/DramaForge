@@ -322,6 +322,8 @@ async def upload_reference(file: UploadFile = File(...)):
 
 @router.post("/submit")
 async def submit_run(body: SubmitRequest, db: Session = Depends(get_db)):
+    if body.creationMode == "remix" and not body.thread_id:
+        raise HTTPException(501, "Pippit 官网专用重制转绘尚未接通，不能以通用 Nest 创作代替。本次未提交创作任务。")
     skill_dir = _ensure_skill()
     preferences = None
     message = body.message
