@@ -31,7 +31,7 @@
         <button class="analysisBack" type="button" :aria-label="isEpisodeEditor ? '返回剧集' : '返回项目资源'" @click="isEpisodeEditor ? selectedEpisode = null : router.push('/home?section=projects')">‹</button>
         <span class="analysisProjectName">{{ isEpisodeEditor ? `第 ${selectedEpisode} 集 · ${analysisProject.name}` : analysisProject.name }}</span>
         <el-tag v-if="analysisProject.generation_settings?.creativePreferences?.styleName" size="small" effect="plain">{{ analysisProject.generation_settings.creativePreferences.styleName }}</el-tag>
-        <template v-if="isEpisodeEditor"><span class="episodeSaved">● {{ editingShotPrompt ? '未保存' : generationSettingsBusy || shotBusy ? '正在处理' : '已保存' }}</span><div class="episodeHeaderTools"><generationModelMenu v-model="videoModel" :options="generationModelOptions.video" :defaultLabel="defaultVideoModelLabel" :disabled="shotBusy || activeEpisodeShot?.video_status === 'processing'" /><el-select class="compactSetting" :modelValue="videoModel === 'pippit' ? '自动' : currentGenerationOptions.resolution" :disabled="videoModel === 'pippit' || generationSettingsBusy || activeEpisodeShot?.video_status === 'processing'" aria-label="视频清晰度" @change="saveClipGeneration('resolution', $event)"><el-option v-for="value in ['720P', '1080P', '1K', '2K']" :key="value" :label="value.toLowerCase()" :value="value" /></el-select><el-select class="compactSetting" :modelValue="videoModel === 'pippit' ? '自动' : currentGenerationOptions.aspect_ratio" :disabled="videoModel === 'pippit' || generationSettingsBusy || activeEpisodeShot?.video_status === 'processing'" aria-label="视频画幅" @change="saveClipGeneration('aspect_ratio', $event)"><el-option v-for="value in ['9:16', '16:9', '1:1', '3:4', '4:3', '21:9']" :key="value" :label="value" :value="value" /></el-select></div></template>
+        <template v-if="isEpisodeEditor"><span class="episodeSaved">● {{ editingShotPrompt ? '未保存' : generationSettingsBusy || shotBusy ? '正在处理' : '已保存' }}</span><div class="episodeHeaderTools"><generationModelMenu v-model="videoModel" :options="generationModelOptions.video" :defaultLabel="defaultVideoModelLabel" :disabled="shotBusy || videoBatchRunning || activeEpisodeShot?.video_status === 'processing'" /><el-select class="compactSetting" :modelValue="videoModel === 'pippit' ? '自动' : currentGenerationOptions.resolution" :disabled="videoModel === 'pippit' || videoBatchRunning || generationSettingsBusy || activeEpisodeShot?.video_status === 'processing'" aria-label="视频清晰度" @change="saveClipGeneration('resolution', $event)"><el-option v-for="value in ['720P', '1080P', '1K', '2K']" :key="value" :label="value.toLowerCase()" :value="value" /></el-select><el-select class="compactSetting" :modelValue="videoModel === 'pippit' ? '自动' : currentGenerationOptions.aspect_ratio" :disabled="videoModel === 'pippit' || videoBatchRunning || generationSettingsBusy || activeEpisodeShot?.video_status === 'processing'" aria-label="视频画幅" @change="saveClipGeneration('aspect_ratio', $event)"><el-option v-for="value in ['9:16', '16:9', '1:1', '3:4', '4:3', '21:9']" :key="value" :label="value" :value="value" /></el-select></div></template>
         <ol v-else class="analysisSteps" aria-label="制作步骤"><li :class="{ active: analysisStep === 1 }">1. 脚本</li><li :class="{ active: analysisStep === 2 }"><button type="button" :disabled="analysisProject.analysis_state?.status !== 'done'" @click="productionView = 'assets'">2. 制作资产库</button></li><li :class="{ active: analysisStep === 3 }"><button type="button" :disabled="analysisProject.analysis_state?.status !== 'done'" @click="productionView = 'episodes'; selectedEpisode = null">3. 剧集</button></li></ol>
         <el-button round size="small" @click="router.push({ path: '/home', query: { section: 'dreamina', projectId: analysisProject?.id } })">即梦画布</el-button>
       </header>
@@ -49,9 +49,9 @@
           </div>
           <div v-else class="episodeEditor">
             <aside class="productionLibrary"><h2>制作资产库</h2><input v-model="assetSearch" type="search" placeholder="搜索资产库" aria-label="搜索资产库" /><section v-for="group in episodeAssetGroups" :key="group.key"><h3>{{ group.label }}</h3><button v-for="asset in group.items" :key="asset.id" type="button" class="libraryAsset" @click="selectedResult = asset"><div><img v-if="asset.image" :src="asset.image" :alt="asset.name" /><icon-file-text v-else :size="20" /></div><span>{{ asset.name }}<small>{{ asset.image ? '参考图已就绪' : '参考图待生成' }}</small></span></button></section></aside>
-            <div v-if="activeEpisodeShot" class="clipScript"><header><h2>片段 {{ String(activeEpisodeShot.shot_no).padStart(2, '0') }}</h2><span>{{ activeEpisodeShot.duration }} 秒 · {{ shotStatusText(activeEpisodeShot) }}</span></header><div class="clipReferences"><button v-for="asset in activeShotAssets" :key="`${asset.kind}-${asset.id}`" type="button" :class="{ missingReference: !asset.image }" @click="selectedResult = asset"><img v-if="asset.image" :src="asset.image" :alt="asset.name" /><span>{{ asset.name }}</span><small v-if="!asset.image">待设置参考图</small></button></div><article class="clipPrompt"><h3>{{ activeEpisodeShot.title }}</h3><p>{{ activeEpisodeShot.scene_name }} · {{ (activeEpisodeShot.character_names || []).join('、') }}</p><textarea v-if="editingShotPrompt" v-model="shotPromptDraft" aria-label="编辑分镜提示词" /><p v-else class="scriptText">{{ activeEpisodeShot.prompt }}</p><details><summary>镜头设计与首帧提示词</summary><p class="scriptText">{{ designText(activeEpisodeShot.direction) }}</p><p class="scriptText">{{ activeEpisodeShot.keyframe_prompt }}</p></details><footer><el-button round :disabled="shotBusy || activeEpisodeShot.video_status === 'processing'" @click="editingShotPrompt ? saveEpisodeShot() : startEditingShot()">{{ editingShotPrompt ? '保存' : '编辑' }}</el-button><el-button v-if="editingShotPrompt" round @click="editingShotPrompt = false">取消</el-button><el-button type="primary" round :loading="shotBusy || activeEpisodeShot.video_status === 'processing'" @click="generateEpisodeShot">生成视频</el-button></footer></article><p v-if="activeEpisodeShot.last_error" class="clipError" role="alert">{{ activeEpisodeShot.last_error }}</p></div>
+            <div v-if="activeEpisodeShot" class="clipScript"><header><h2>片段 {{ String(activeEpisodeShot.shot_no).padStart(2, '0') }}</h2><span>{{ activeEpisodeShot.duration }} 秒 · {{ shotStatusText(activeEpisodeShot) }}</span></header><div class="clipReferences"><button v-for="asset in activeShotAssets" :key="`${asset.kind}-${asset.id}`" type="button" :class="{ missingReference: !asset.image }" @click="selectedResult = asset"><img v-if="asset.image" :src="asset.image" :alt="asset.name" /><span>{{ asset.name }}</span><small v-if="!asset.image">待设置参考图</small></button></div><article class="clipPrompt"><h3>{{ activeEpisodeShot.title }}</h3><p>{{ activeEpisodeShot.scene_name }} · {{ (activeEpisodeShot.character_names || []).join('、') }}</p><textarea v-if="editingShotPrompt" v-model="shotPromptDraft" aria-label="编辑分镜提示词" /><p v-else class="scriptText">{{ activeEpisodeShot.prompt }}</p><details><summary>镜头设计与首帧提示词</summary><p class="scriptText">{{ designText(activeEpisodeShot.direction) }}</p><p class="scriptText">{{ activeEpisodeShot.keyframe_prompt }}</p></details><footer><el-button round :disabled="shotBusy || videoBatchRunning || activeEpisodeShot.video_status === 'processing'" @click="editingShotPrompt ? saveEpisodeShot() : startEditingShot()">{{ editingShotPrompt ? '保存' : '编辑' }}</el-button><el-button v-if="editingShotPrompt" round @click="editingShotPrompt = false">取消</el-button><el-button type="primary" round :disabled="videoBatchRunning" :loading="shotBusy || activeEpisodeShot.video_status === 'processing'" @click="generateEpisodeShot">生成视频</el-button></footer></article><p v-if="activeEpisodeShot.last_error" class="clipError" role="alert">{{ activeEpisodeShot.last_error }}</p></div>
             <aside v-if="activeEpisodeShot" class="clipPreview"><video v-if="activeEpisodeShot.video_url" :key="activeEpisodeShot.video_url" :src="activeEpisodeShot.video_url" controls :poster="activeEpisodeShot.keyframe_url || undefined" /><div v-else class="emptyClipPreview"><icon-file-text :size="30" /><p>{{ activeEpisodeShot.video_status === 'processing' ? '视频正在生成…' : '生成的片段将会显示在这里' }}</p></div></aside>
-            <nav class="clipTimeline" aria-label="片段列表"><button v-for="shot in episodeShots" :key="shot.id" type="button" :class="{ active: activeEpisodeShot?.id === shot.id }" @click="selectedShotId = shot.id; editingShotPrompt = false"><div><img v-if="shot.keyframe_url" :src="shot.keyframe_url" alt="" /><icon-file-text v-else :size="20" /></div><span>片段 {{ String(shot.shot_no).padStart(2, '0') }} · {{ shot.duration }}s</span><small>{{ shotStatusText(shot) }}</small></button></nav>
+            <section class="clipTimelineArea"><header class="clipBatchTools"><span>{{ videoBatchMessage || '本集片段' }}</span><template v-if="videoBatchRunning"><el-button size="small" :disabled="videoBatchPauseRequested" @click="videoBatchPauseRequested = true">{{ videoBatchPauseRequested ? '完成当前片段后暂停' : '暂停后续片段' }}</el-button></template><template v-else-if="selectingVideoShots"><el-button size="small" @click="selectedVideoShotIds = eligibleVideoShots.map(shot => shot.id)">全选待生成</el-button><el-button size="small" @click="selectingVideoShots = false">取消</el-button><el-button size="small" type="primary" :disabled="!selectedVideoShotIds.length || shotBusy" @click="generateVideoBatch">批量生成 · {{ selectedVideoShotIds.length }}</el-button></template><el-button v-else size="small" :disabled="shotBusy" @click="selectingVideoShots = true; selectedVideoShotIds = []">选择片段 · 批量生成</el-button></header><nav class="clipTimeline" aria-label="片段列表"><button v-for="shot in episodeShots" :key="shot.id" type="button" :class="{ active: activeEpisodeShot?.id === shot.id, selectedClip: selectingVideoShots && selectedVideoShotIds.includes(shot.id) }" :aria-pressed="selectingVideoShots ? selectedVideoShotIds.includes(shot.id) : activeEpisodeShot?.id === shot.id" @click="chooseTimelineShot(shot)"><div><video v-if="shot.video_url" :key="shot.video_url" :src="shot.video_url" :poster="shot.keyframe_url || undefined" muted playsinline preload="metadata" aria-label="已生成视频缩略图" @loadedmetadata="seekThumbnail" /><img v-else-if="shot.keyframe_url" :src="shot.keyframe_url" alt="" /><icon-file-text v-else :size="20" /><span v-if="selectingVideoShots" class="clipCheck">{{ selectedVideoShotIds.includes(shot.id) ? '✓' : canQueueVideo(shot) ? '○' : '—' }}</span><span v-else-if="shot.video_url" class="clipPlay">▶</span></div><span>片段 {{ String(shot.shot_no).padStart(2, '0') }} · {{ shot.duration }}s</span><small>{{ shotStatusText(shot) }}</small></button></nav></section>
           </div>
         </template>
         <template v-else>
@@ -538,7 +538,22 @@ const assetSearch = ref("");
 const editingShotPrompt = ref(false);
 const shotPromptDraft = ref("");
 const shotBusy = ref(false);
+const selectingVideoShots = ref(false);
+const selectedVideoShotIds = ref<number[]>([]);
+const videoBatchRunning = ref(false);
+const videoBatchPauseRequested = ref(false);
+const videoBatchMessage = ref("");
+function canQueueVideo(shot: Record<string, any>) { return !shot.video_url && shot.video_status !== "processing"; }
+function seekThumbnail(event: Event) { const video = event.target as HTMLVideoElement; if (Number.isFinite(video.duration) && video.duration > 0) video.currentTime = Math.min(0.15, video.duration / 2); }
+function chooseTimelineShot(shot: Record<string, any>) {
+  if (selectingVideoShots.value) {
+    if (!canQueueVideo(shot)) return;
+    selectedVideoShotIds.value = selectedVideoShotIds.value.includes(shot.id) ? selectedVideoShotIds.value.filter(id => id !== shot.id) : [...selectedVideoShotIds.value, shot.id];
+  } else { selectedShotId.value = shot.id; editingShotPrompt.value = false; }
+}
+
 const episodeShots = computed(() => ((analysisProject.value?.shots || []) as Record<string, any>[]).filter(shot => Number(shot.episode_no) === selectedEpisode.value).sort((a, b) => a.shot_no - b.shot_no));
+const eligibleVideoShots = computed(() => episodeShots.value.filter(canQueueVideo));
 const activeEpisodeShot = computed(() => episodeShots.value.find(shot => shot.id === selectedShotId.value) || episodeShots.value[0]);
 watch(() => activeEpisodeShot.value?.id, () => {
   if (activeEpisodeShot.value?.provider_model) videoModel.value = activeEpisodeShot.value.provider_model;
@@ -600,10 +615,59 @@ async function saveEpisodeShot() {
   } catch (error) { ElMessage.error(error instanceof Error ? error.message : "保存失败"); }
   finally { shotBusy.value = false; }
 }
+async function generateVideoBatch() {
+  const project = analysisProject.value;
+  if (!project || videoBatchRunning.value || shotBusy.value || editingShotPrompt.value) return;
+  const chosenModel = videoModel.value;
+  if (!chosenModel) return ElMessage.warning("请先选择视频模型");
+  const shots = episodeShots.value.filter(shot => selectedVideoShotIds.value.includes(shot.id) && canQueueVideo(shot));
+  if (!shots.length) return ElMessage.warning("没有可提交的待生成片段");
+  const assets = [...resultItemsFor("characters"), ...resultItemsFor("scenes")];
+  for (const shot of shots) {
+    const mode = shot.generation_settings?.mode || (project.generation_settings as any)?.mode || "auto";
+    const missing = assets.filter(asset => asset.kind === "characters" ? (shot.character_names || []).includes(asset.name) && !asset.image : asset.name === shot.scene_name && !asset.image);
+    if ((chosenModel === "pippit" || mode === "auto" || mode === "reference") && missing.length) return ElMessage.warning(`片段 ${shot.shot_no} 缺少参考图：${missing.map(asset => asset.name).join("、")}`);
+  }
+  try { await ElMessageBox.confirm(`将使用 ${generationModelOptions.value.video.find(model => model.id === chosenModel)?.label || chosenModel} 依次生成所选 ${shots.length} 个片段，可能消耗额度，费用以平台实际为准。跳过已有视频和正在生成的片段；失败或状态无法确认时停止，不自动换账号或重复提交。离开本页将暂停尚未提交的片段，已提交任务仍在后台继续。是否开始？`, "批量生成视频", { confirmButtonText: "确认批量生成", cancelButtonText: "取消" }); } catch { return; }
+  videoBatchRunning.value = true; videoBatchPauseRequested.value = false; selectingVideoShots.value = false;
+  let completed = 0;
+  try {
+    for (const shot of shots) {
+      if (videoBatchPauseRequested.value || targetGenerationAbort.signal.aborted) break;
+      const current = (analysisProject.value?.shots as any[] || []).find(item => item.id === shot.id);
+      if (!current || !canQueueVideo(current)) { selectedVideoShotIds.value = selectedVideoShotIds.value.filter(id => id !== shot.id); continue; }
+      videoBatchMessage.value = `批量生成 ${completed + 1}/${shots.length} · 片段 ${shot.shot_no}`;
+      if (chosenModel === "pippit") await generateWithPippit(project.id, "video", shot.id, shot.prompt);
+      else {
+        const response = await fetch(dramaForgeApiUrl(`projects/${project.id}/shots/${shot.id}/generate?${new URLSearchParams({ model: chosenModel })}`), { method: "POST", signal: targetGenerationAbort.signal });
+        const result = await response.json();
+        if (!response.ok) throw new Error(typeof result.detail === "string" ? result.detail : "提交未确认，请先核对原任务");
+        let finished = false;
+        for (let attempt = 0; attempt < 720; attempt++) {
+          if (targetGenerationAbort.signal.aborted) throw new Error("页面已离开，已提交任务继续执行");
+          const response = await fetch(dramaForgeApiUrl(`projects/${project.id}`), { signal: targetGenerationAbort.signal });
+          if (!response.ok) throw new Error("查询失败，请先核对原任务，不要重复生成");
+          const fresh = await response.json();
+          window.dispatchEvent(new CustomEvent("dramaforge:project-update", { detail: fresh }));
+          const current = fresh.shots.find((item: any) => item.id === shot.id);
+          if (current?.video_url) { finished = true; break; }
+          if (current?.video_status === "failed") throw new Error(current.last_error || "片段生成失败");
+          await new Promise(resolve => setTimeout(resolve, 5000));
+        }
+        if (!finished) throw new Error("仍未确认生成结果，后续片段已暂停");
+      }
+      completed++;
+      selectedVideoShotIds.value = selectedVideoShotIds.value.filter(id => id !== shot.id);
+      await refreshDramaForgeProject(String(project.id));
+    }
+    videoBatchMessage.value = `${completed === shots.length ? '批量完成' : '队列已暂停'}：已完成 ${completed}/${shots.length} 个片段`;
+  } catch (error) { videoBatchMessage.value = `队列已停止，完成 ${completed}/${shots.length}：${error instanceof Error ? error.message : '请求异常'}。未自动重新提交。`; }
+  finally { videoBatchRunning.value = false; if (!targetGenerationAbort.signal.aborted) await refreshDramaForgeProject(String(project.id)); }
+}
 async function generateEpisodeShot() {
   const shot = activeEpisodeShot.value;
   const project = analysisProject.value;
-  if (!shot || !project || shotBusy.value || shot.video_status === "processing") return;
+  if (!shot || !project || shotBusy.value || videoBatchRunning.value || shot.video_status === "processing") return;
   if (editingShotPrompt.value) { ElMessage.warning("请先保存或取消编辑"); return; }
   const missing = activeShotAssets.value.filter(asset => !asset.image);
   const mode = shot.generation_settings?.mode || (project.generation_settings as Record<string, unknown> | undefined)?.mode || "auto";
@@ -1046,7 +1110,7 @@ function saveDocumentNode(directory: string, canvasPath: string, nodeId: string,
       .assetGenerateButton { margin: 14px 8px 0; }
       .assetImageError { color: var(--el-color-danger); font-size: 12px; margin: 12px 8px; overflow-wrap: anywhere; }
       @media (max-width: 680px) { .assetGenerationBar { align-items: flex-start; flex-direction: column; } .assetGenerationActions { flex-wrap: wrap; } }
-      &.editingEpisode { width: calc(100% - 16px); margin: 8px auto; .episodeEditor { height: calc(100vh - 84px); min-height: 560px; grid-template-rows: minmax(0, 1fr) 130px; } .productionLibrary { max-height: none; } .clipScript { overflow-y: auto; } .clipPreview { min-height: 0; overflow: hidden; video, .emptyClipPreview { max-height: 100%; } } .clipTimeline { align-items: center; } }
+      &.editingEpisode { width: calc(100% - 16px); margin: 8px auto; .episodeEditor { height: calc(100vh - 84px); min-height: 560px; grid-template-rows: minmax(0, 1fr) 180px; } .productionLibrary { max-height: none; } .clipScript { overflow-y: auto; } .clipPreview { min-height: 0; overflow: hidden; video, .emptyClipPreview { max-height: 100%; } } .clipTimeline { align-items: center; } }
       .episodeEditor { display: grid; grid-template-columns: 260px minmax(0, 1fr) 300px; grid-template-rows: minmax(440px, 1fr) auto; gap: 8px; min-height: calc(100vh - 210px); }
       .productionLibrary, .clipScript, .clipPreview, .clipTimeline { border: 1px solid var(--el-border-color-lighter); border-radius: 24px; background: var(--el-bg-color); }
       .productionLibrary { grid-row: 1 / 3; padding: 20px 16px; max-height: calc(100vh - 210px); overflow: auto; h2 { font-size: 14px; font-weight: 500; margin: 0 0 20px; } input { box-sizing: border-box; width: 100%; border-radius: 20px; padding: 8px 12px; border: 1px solid var(--el-border-color-lighter); background: var(--el-fill-color-light); color: inherit; } h3 { font-size: 12px; font-weight: 500; margin: 24px 0 10px; } }
@@ -1056,8 +1120,10 @@ function saveDocumentNode(directory: string, canvasPath: string, nodeId: string,
       .clipPrompt { background: var(--el-fill-color-light); border-radius: 24px; padding: 20px; min-height: 320px; h3 { font-size: 15px; font-weight: 500; margin: 0 0 12px; } > p { font-size: 12px; color: var(--el-text-color-secondary); } .scriptText { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14px; line-height: 1.95; color: var(--el-text-color-primary); } details { margin-top: 24px; summary { font-size: 12px; cursor: pointer; color: var(--el-text-color-secondary); } } textarea { box-sizing: border-box; width: 100%; min-height: 250px; border: 1px solid var(--el-border-color); border-radius: 12px; padding: 14px; background: var(--el-bg-color); color: inherit; font: inherit; line-height: 1.8; resize: vertical; } footer { display: flex; justify-content: flex-end; margin-top: 24px; } }
       .clipError { color: var(--el-color-danger); font-size: 12px; }
       .clipPreview { display: grid; place-items: center; padding: 24px; video, .emptyClipPreview { width: 100%; aspect-ratio: 9 / 16; border-radius: 24px; background: var(--el-fill-color-blank); object-fit: contain; } .emptyClipPreview { display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--el-text-color-placeholder); p { font-size: 12px; text-align: center; padding: 12px; } } }
-      .clipTimeline { grid-column: 2 / 4; display: flex; gap: 10px; padding: 18px; overflow-x: auto; button { flex-shrink: 0; border: 0; background: none; color: var(--el-text-color-secondary); width: 122px; cursor: pointer; padding: 0; > div { height: 72px; border: 1px solid transparent; border-radius: 12px; background: var(--el-fill-color-light); display: grid; place-items: center; overflow: hidden; } &.active > div { border-color: var(--el-text-color-primary); } img { width: 100%; height: 100%; object-fit: cover; } span, small { display: block; margin-top: 7px; font-size: 11px; } small { font-size: 10px; } } }
-      @media (max-width: 900px) { .episodeEditor { grid-template-columns: 200px minmax(0, 1fr); } .clipPreview { grid-column: 2; grid-row: 2; video, .emptyClipPreview { max-width: 240px; } } .clipTimeline { grid-column: 1 / 3; } }
+      .clipTimelineArea { grid-column: 2 / 4; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+      .clipBatchTools { display: flex; gap: 8px; align-items: center; min-height: 34px; padding: 0 12px; > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--el-text-color-secondary); } :deep(.el-button) { margin: 0; } }
+      .clipTimeline { flex: 1; min-height: 0; grid-column: 2 / 4; display: flex; gap: 10px; padding: 18px; overflow-x: auto; button { flex-shrink: 0; border: 0; background: none; color: var(--el-text-color-secondary); width: 122px; cursor: pointer; padding: 0; > div { position: relative; height: 72px; border: 1px solid transparent; border-radius: 12px; background: var(--el-fill-color-light); display: grid; place-items: center; overflow: hidden; } &.active > div { border-color: var(--el-text-color-primary); } img, video { width: 100%; height: 100%; object-fit: cover; } .clipCheck, .clipPlay { position: absolute; right: 5px; top: 4px; padding: 2px 5px; background: rgb(0 0 0 / 60%); color: white; border-radius: 8px; margin: 0; } &.selectedClip > div { border-color: var(--el-color-primary); } span, small { display: block; margin-top: 7px; font-size: 11px; } small { font-size: 10px; } } }
+      @media (max-width: 900px) { .episodeEditor { grid-template-columns: 200px minmax(0, 1fr); } .clipPreview { grid-column: 2; grid-row: 2; video, .emptyClipPreview { max-width: 240px; } } .clipTimelineArea { grid-column: 1 / 3; } }
       @media (max-width: 680px) { .episodeEditor { display: flex; flex-direction: column; } .productionLibrary { max-height: 240px; } .clipScript { padding: 14px; } }
       .episodeGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
       .episodeCard { display: flex; align-items: center; gap: 28px; min-width: 0; padding: 9px; border: 1px solid var(--el-border-color-lighter); border-radius: 22px; background: var(--el-bg-color); color: inherit; text-align: left; cursor: pointer; &:hover { border-color: var(--el-color-primary); } }
