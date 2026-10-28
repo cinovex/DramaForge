@@ -43,8 +43,8 @@
           <div v-if="selectedEpisode === null" class="resultHeading"><div><h1>剧集</h1><p>共 {{ episodeItems.length }} 集</p></div><el-button round @click="productionView = 'assets'">制作资产库</el-button></div>
           <div v-if="selectedEpisode === null" class="episodeGrid">
             <button v-for="episode in episodeItems" :key="episode.number" type="button" class="episodeCard" @click="selectedEpisode = episode.number">
-              <div class="episodePreview"><icon-file-text :size="30" :strokeWidth="1" /></div>
-              <div class="episodeContent"><small>分镜脚本已就绪</small><h2>第 {{ episode.number }} 集</h2><p>{{ episode.characters }} 个角色 · {{ episode.scenes }} 个场景 · {{ episode.shots }} 个分镜</p><span class="episodeAction">编辑 · 生成视频 →</span></div>
+              <div class="episodePreview"><video v-if="episode.video" :src="episode.video" :poster="episode.image || undefined" muted playsinline preload="metadata" aria-label="剧集已生成片段预览" @loadedmetadata="seekThumbnail" /><img v-else-if="episode.image" :src="episode.image" :alt="`第 ${episode.number} 集首帧`" /><icon-file-text v-else :size="30" :strokeWidth="1" /></div>
+              <div class="episodeContent"><small>{{ episode.completed ? `视频已生成 ${episode.completed}/${episode.shots}` : '分镜脚本已就绪 · 视频待生成' }}</small><h2>第 {{ episode.number }} 集</h2><p>{{ episode.characters }} 个角色 · {{ episode.scenes }} 个场景 · {{ episode.shots }} 个分镜</p><span class="episodeAction">编辑 · 生成视频 →</span></div>
             </button>
           </div>
           <div v-else class="episodeEditor">
@@ -62,8 +62,8 @@
           <div v-for="item in resultItemsFor(resultTab)" :key="item.id" class="resultCard" :class="{ selectedAsset: selectingAssets && selectedAssetIds.includes(item.id) }">
             <button type="button" class="assetCardOpen" :aria-pressed="selectingAssets ? selectedAssetIds.includes(item.id) : undefined" @click="selectingAssets ? toggleAssetSelection(item.id) : selectedResult = item">
             <span v-if="selectingAssets" class="assetSelectionMark">{{ selectedAssetIds.includes(item.id) ? '✓' : '○' }}</span>
-            <div class="resultPreview"><img v-if="item.image" :src="item.image" :alt="item.name" /><icon-file-text v-else :size="38" :strokeWidth="1" /></div>
-            <strong>{{ item.name }}</strong><span class="resultDescription">{{ item.description }}</span><small>{{ item.image ? '已有参考图' : resultTab === 'shots' ? '分镜设计与提示词已就绪' : '文字设定已就绪 · 参考图待生成' }}</small>
+            <div class="resultPreview"><video v-if="item.video" :src="item.video" :poster="item.image || undefined" muted playsinline preload="metadata" aria-label="分镜已生成视频预览" @loadedmetadata="seekThumbnail" /><img v-else-if="item.image" :src="item.image" :alt="item.name" /><icon-file-text v-else :size="38" :strokeWidth="1" /></div>
+            <strong>{{ item.name }}</strong><span class="resultDescription">{{ item.description }}</span><small>{{ resultTab === 'shots' ? item.status : item.image ? '已有参考图' : '文字设定已就绪 · 参考图待生成' }}</small>
             </button><p v-if="assetImageErrors[`${item.kind}-${item.id}`]" class="assetImageError" role="alert">{{ assetImageErrors[`${item.kind}-${item.id}`] }}</p><el-button v-if="resultTab !== 'shots' && !selectingAssets" class="assetGenerateButton" round size="small" :loading="generatingAssetKey === `${item.kind}-${item.id}`" :disabled="assetGenerating" @click="generateResultImage(item)">{{ item.image ? '重新生成' : '生成图片' }}</el-button>
           </div>
         </div>
@@ -346,7 +346,7 @@ const analysisRefreshError = ref("");
 const analysisCountLabels = { episodes: "分集", characters: "角色", scenes: "场景", props: "道具", shots: "分镜" };
 const resultTabs = [{ key: "characters", label: "角色" }, { key: "scenes", label: "场景" }, { key: "props", label: "道具" }, { key: "shots", label: "分镜" }] as const;
 type ResultTab = typeof resultTabs[number]["key"];
-type AnalysisResultItem = { id: number; name: string; description: string; prompt: string; image?: string; design?: Record<string, unknown>; kind?: ResultTab };
+type AnalysisResultItem = { id: number; name: string; description: string; prompt: string; image?: string; video?: string; status?: string; design?: Record<string, unknown>; kind?: ResultTab };
 const resultTab = ref<ResultTab>("characters");
 const productionView = ref<"assets" | "episodes">(route.query.production === "episodes" ? "episodes" : "assets");
 const selectedEpisode = ref<number | null>(Number(route.query.episode) > 0 ? Number(route.query.episode) : null);
@@ -705,7 +705,11 @@ const episodeItems = computed(() => {
     if (shot.scene_name) group.scenes.add(shot.scene_name);
     groups.set(number, group);
   }
-  return [...groups.values()].sort((a, b) => a.number - b.number).map(group => ({ number: group.number, shots: group.shots, characters: group.characters.size, scenes: group.scenes.size }));
+  return [...groups.values()].sort((a, b) => a.number - b.number).map(group => {
+    const shots = ((analysisProject.value?.shots || []) as Record<string, any>[]).filter(shot => Number(shot.episode_no) === group.number).sort((a, b) => a.shot_no - b.shot_no);
+    const cover = shots.find(shot => shot.video_url) || shots.find(shot => shot.keyframe_url);
+    return { number: group.number, shots: group.shots, characters: group.characters.size, scenes: group.scenes.size, video: cover?.video_url, image: cover?.keyframe_url, completed: shots.filter(shot => shot.video_url).length };
+  });
 });
 const visibleShotItems = computed(() => {
   const ids = new Set(((analysisProject.value?.shots || []) as Record<string, any>[]).filter(shot => Number(shot.episode_no) === selectedEpisode.value).map(shot => shot.id));
@@ -765,6 +769,8 @@ function resultItemsFor(key: ResultTab): AnalysisResultItem[] {
       description: key === "shots" ? `${item.duration} 秒 · ${item.scene_name || "未设置场景"} · ${(item.character_names || []).join("、")}` : item.description || "",
       prompt: key === "shots" ? [item.keyframe_prompt && `首帧提示词：\n${item.keyframe_prompt}`, item.prompt && `视频提示词：\n${item.prompt}`].filter(Boolean).join("\n\n") : design.turnaround_prompt || design.reference_prompt || design.prompt || item.description || "",
       image: item.base_image_url || item.image_url || item.keyframe_url,
+      video: key === "shots" ? item.video_url : undefined,
+      status: key === "shots" ? shotStatusText(item) : undefined,
       design,
     };
   });
@@ -1127,7 +1133,7 @@ function saveDocumentNode(directory: string, canvasPath: string, nodeId: string,
       @media (max-width: 680px) { .episodeEditor { display: flex; flex-direction: column; } .productionLibrary { max-height: 240px; } .clipScript { padding: 14px; } }
       .episodeGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
       .episodeCard { display: flex; align-items: center; gap: 28px; min-width: 0; padding: 9px; border: 1px solid var(--el-border-color-lighter); border-radius: 22px; background: var(--el-bg-color); color: inherit; text-align: left; cursor: pointer; &:hover { border-color: var(--el-color-primary); } }
-      .episodePreview { display: grid; place-items: center; width: 104px; height: 138px; flex-shrink: 0; border-radius: 13px; background: var(--el-fill-color-light); color: var(--el-text-color-placeholder); }
+      .episodePreview { overflow: hidden; img, video { width: 100%; height: 100%; object-fit: cover; } display: grid; place-items: center; width: 104px; height: 138px; flex-shrink: 0; border-radius: 13px; background: var(--el-fill-color-light); color: var(--el-text-color-placeholder); }
       .episodeContent { min-width: 0; small { font-size: 11px; color: var(--el-text-color-secondary); background: var(--el-fill-color-light); border-radius: 12px; padding: 3px 9px; } h2 { font-size: 15px; font-weight: 500; margin: 14px 0 8px; } p { font-size: 12px; color: var(--el-text-color-secondary); } }
       .episodeAction { display: inline-block; padding: 8px 14px; border-radius: 20px; background: var(--el-fill-color-light); font-size: 12px; }
       .resultContinue { display: flex; justify-content: flex-end; margin-top: 28px; }
@@ -1135,7 +1141,7 @@ function saveDocumentNode(directory: string, canvasPath: string, nodeId: string,
       .resultTabs { display: flex; gap: 28px; border-bottom: 1px solid var(--el-border-color-lighter); button { border: 0; border-bottom: 2px solid transparent; padding: 12px 4px; color: var(--el-text-color-secondary); background: none; cursor: pointer; &.active { border-color: var(--el-text-color-primary); color: var(--el-text-color-primary); } span { font-size: 11px; margin-left: 6px; } } }
       .resultHeading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 28px 0 22px; h1 { font-size: 20px; font-weight: 500; margin: 0 0 8px; } p { font-size: 13px; color: var(--el-text-color-secondary); margin: 0; } }
       .resultGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 18px; }
-      .resultCard { min-width: 0; border: 1px solid var(--el-border-color-lighter); border-radius: 22px; background: var(--el-bg-color); color: inherit; padding: 8px 8px 16px; text-align: left; cursor: pointer; transition: border-color .2s; &:hover { border-color: var(--el-color-primary); } .resultPreview { display: grid; place-items: center; aspect-ratio: 1; border-radius: 16px; background: var(--el-fill-color-light); color: var(--el-text-color-placeholder); overflow: hidden; img { width: 100%; height: 100%; object-fit: contain; } } strong { display: block; font-size: 14px; font-weight: 500; margin: 14px 8px 8px; } .resultDescription { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; margin: 0 8px; font-size: 12px; line-height: 1.7; color: var(--el-text-color-secondary); } small { display: block; font-size: 11px; color: var(--el-text-color-secondary); margin: 12px 8px 0; } }
+      .resultCard { min-width: 0; border: 1px solid var(--el-border-color-lighter); border-radius: 22px; background: var(--el-bg-color); color: inherit; padding: 8px 8px 16px; text-align: left; cursor: pointer; transition: border-color .2s; &:hover { border-color: var(--el-color-primary); } .resultPreview { display: grid; place-items: center; aspect-ratio: 1; border-radius: 16px; background: var(--el-fill-color-light); color: var(--el-text-color-placeholder); overflow: hidden; img, video { width: 100%; height: 100%; object-fit: contain; } } strong { display: block; font-size: 14px; font-weight: 500; margin: 14px 8px 8px; } .resultDescription { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; margin: 0 8px; font-size: 12px; line-height: 1.7; color: var(--el-text-color-secondary); } small { display: block; font-size: 11px; color: var(--el-text-color-secondary); margin: 12px 8px 0; } }
       .resultEmpty { color: var(--el-text-color-secondary); margin-top: 40px; text-align: center; }
       @media (max-width: 680px) { width: calc(100% - 32px); .resultTabs { gap: 18px; } .resultGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; } .resultHeading { align-items: flex-start; } }
     }
