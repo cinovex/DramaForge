@@ -164,6 +164,7 @@ import canvasControls from "./components/canvasControls.vue";
 import canvasEmpty from "./components/canvasEmpty.vue";
 import assetLibrary from "./components/assetLibrary.vue";
 import groupNode from "./components/groupNode.vue";
+import productionMedia from "./components/productionMedia.vue";
 import selectionToolbar from "./components/selectionToolbar.vue";
 import nodeSearch from "./components/nodeSearch.vue";
 import { finishGroupDrag, getSelectionTree } from "./selectionNodes";
@@ -202,7 +203,7 @@ const canvasMenuRef = ref<InstanceType<typeof canvasMenu>>();
 const canvasControlsRef = ref<InstanceType<typeof canvasControls>>();
 const selectionToolbarRef = ref<InstanceType<typeof selectionToolbar>>();
 const nodeSearchRef = ref<InstanceType<typeof nodeSearch>>();
-const nodeTypes = shallowRef<NodeTypesObject>({ canvasGroup: markRaw(groupNode) });
+const nodeTypes = shallowRef<NodeTypesObject>({ canvasGroup: markRaw(groupNode), productionMedia: markRaw(productionMedia) });
 const nodeConfigs = shallowRef<Record<string, Record<string, unknown>>>({});
 const nodeOptions = ref<{ type: string; label: string }[]>([]);
 const nodeLoads = shallowReactive(new Map<string, Promise<void>>());
@@ -430,14 +431,31 @@ function buildDramaForgeNodes(project: any) {
     episodeTop += Math.max(1, Math.ceil(list.length / 3)) * 650 + 180;
   }
   nodes.push(dramaForgeTextNode(projectId, "storyboard", "逐镜导演设计与完整提示词", storyboardSections.join("\n\n---\n\n"), 1120, 0));
-  return nodes;
+  const groupedNodes: any[] = nodes.filter(node => node.type === "remote-textNode" && !node.id.endsWith("-prompt"));
+  function addMediaGroup(suffix: string, label: string, items: any[], x: number, y: number) {
+    const id = `dramaforge-${projectId}-group-${suffix}`;
+    groupedNodes.push({ id, type: "canvasGroup", position: { x, y }, style: { width: "850px", height: `${Math.max(1, Math.ceil(items.length / 3)) * 360 + 60}px` }, data: { label: `${label} · ${items.length}`, dramaforgeProjectId: projectId, dramaforgeLayoutVersion: 3 } });
+    items.forEach((item, index) => groupedNodes.push({ id: `dramaforge-${projectId}-${item.suffix}-prompt`, type: "productionMedia", parentNode: id, expandParent: false, position: { x: 24 + index % 3 * 276, y: 40 + Math.floor(index / 3) * 360 }, data: { ...item, dramaforgeProjectId: projectId, dramaforgeLayoutVersion: 3 } }));
+  }
+  for (const [index, kind] of ["characters", "scenes", "props"].entries()) {
+    const category = { characters: "角色", scenes: "场景", props: "道具" }[kind];
+    const singular = { characters: "character", scenes: "scene", props: "prop" }[kind];
+    addMediaGroup(kind, `${category}参考素材`, (project[kind] || []).map((item: any) => ({ suffix: `${singular}-${item.id}`, category, targetKind: kind, targetId: item.id, kind: "image", label: item.name, url: item.base_image_url || item.image_url || "", prompt: item.design?.turnaround_prompt || item.design?.reference_prompt || item.design?.prompt || item.description || "" })), index * 1000 - 520, 600);
+  }
+  let groupTop = 600;
+  for (const episode of episodeNumbers) {
+    const list = shots.filter((shot: any) => Number(shot.episode_no || 1) === episode).sort((a: any, b: any) => a.shot_no - b.shot_no);
+    addMediaGroup(`episode-${episode}`, `第 ${episode} 集 · 分镜视频`, list.map((shot: any) => ({ suffix: `shot-${shot.id}`, category: `分镜 ${shot.shot_no}`, targetKind: "shots", targetId: shot.id, episode, kind: "video", label: shot.title || `镜头 ${shot.shot_no}`, url: shot.video_url || "", poster: shot.keyframe_url || "", duration: shot.duration, running: shot.video_status === "processing", prompt: shot.prompt || shot.keyframe_prompt || "" })), 2600, groupTop);
+    groupTop += Math.max(1, Math.ceil(list.length / 3)) * 360 + 180;
+  }
+  return groupedNodes;
 }
 
 let dramaForgeViewChecked = false;
 async function syncDramaForgeProject(project: any) {
   if (!props.active || !canvasReady.value || !project?.id || !canvasId.value) throw new Error("Toonflow 画布尚未就绪，请稍后重试");
   const projectId = Number(project.id);
-  const wanted = buildDramaForgeNodes(project).filter(node => availableNodes.value.some(available => available.type === node.type));
+  const wanted = buildDramaForgeNodes(project).filter(node => ["canvasGroup", "productionMedia"].includes(node.type) || availableNodes.value.some(available => available.type === node.type));
   const wantedById = new Map(wanted.map(node => [node.id, node]));
   const current = flow.getNodes.value;
   const owned = current.filter(node => node.data?.dramaforgeProjectId === projectId);
@@ -462,6 +480,7 @@ async function syncDramaForgeProject(project: any) {
       Object.assign(existing.data, desired.data);
       delete existing.data.textSnapshot;
     } else {
+      if (desired.type === "canvasGroup" && existing.data?.label !== desired.data.label) existing.style = desired.style;
       Object.assign(existing.data, desired.data);
     }
   }
@@ -1102,7 +1121,7 @@ async function pasteClipboardNode(position: { x: number; y: number }, command?: 
     const snapshot = await readClipboardNodes(text, directory);
     if (canvasSignal.aborted) return false;
     if (snapshot) {
-      if (snapshot.nodes.some(node => node.type !== "canvasGroup" && !availableNodes.value.some(item => item.type === node.type))) {
+      if (snapshot.nodes.some(node => !["canvasGroup", "productionMedia"].includes(node.type || "") && !availableNodes.value.some(item => item.type === node.type))) {
         throw new Error("请先安装并启用对应的节点插件");
       }
       const ids = new Map(snapshot.nodes.map(node => [node.id, crypto.randomUUID()]));

@@ -105,7 +105,7 @@
       </div>
     </section>
     <el-dialog :modelValue="!!selectedResult" :title="selectedResult?.name" width="760px" class="analysisResultDialog" @close="selectedResult = null">
-      <template v-if="selectedResult"><img v-if="selectedResult.image" class="assetDetailImage" :src="selectedResult.image" :alt="selectedResult.name" /><p class="resultDetailText">{{ selectedResult.description }}</p><h3>生成提示词</h3><p class="resultDetailText">{{ selectedResult.prompt || '尚未生成专用提示词，可先使用上述文字设定。' }}</p><section v-for="section in resultDesignSections" :key="section.label"><h3>{{ section.label }}</h3><p class="resultDetailText">{{ section.text }}</p></section><el-button v-if="selectedResult.prompt" @click="copyResultPrompt">复制提示词</el-button><el-button v-if="selectedResult.kind && selectedResult.kind !== 'shots'" type="primary" :loading="assetGenerating" @click="generateResultImage()">{{ selectedResult.image ? '重新生成参考图' : '生成参考图' }}</el-button></template>
+      <template v-if="selectedResult"><img v-if="selectedResult.image" class="assetDetailImage" :src="selectedResult.image" :alt="selectedResult.name" /><p class="resultDetailText">{{ selectedResult.description }}</p><template v-if="selectedResult.kind && selectedResult.kind !== 'shots'"><el-select v-model="imageModel" aria-label="参考图生成模型" placeholder="选择图片模型"><el-option v-for="model in generationModelOptions.image" :key="model.id" :label="model.label" :value="model.id" /></el-select></template><h3>生成提示词</h3><p class="resultDetailText">{{ selectedResult.prompt || '尚未生成专用提示词，可先使用上述文字设定。' }}</p><section v-for="section in resultDesignSections" :key="section.label"><h3>{{ section.label }}</h3><p class="resultDetailText">{{ section.text }}</p></section><el-button v-if="selectedResult.prompt" @click="copyResultPrompt">复制提示词</el-button><el-button v-if="selectedResult.kind && selectedResult.kind !== 'shots'" type="primary" :loading="assetGenerating" @click="generateResultImage()">{{ selectedResult.image ? '重新生成参考图' : '生成参考图' }}</el-button></template>
     </el-dialog>
     <div class="workspaceTools">
       <div class="productionCanvasTools">
@@ -660,6 +660,20 @@ async function pauseAnalysis() {
   finally { analysisRetrying.value = false; }
 }
 
+function openProductionMedia(event: Event) {
+  const detail = (event as CustomEvent).detail;
+  const project = analysisProject.value;
+  if (!project || Number(detail?.projectId) !== project.id) return;
+  if (detail.kind === "shots" && project.analysis_state?.status === "done") {
+    productionView.value = "episodes";
+    selectedEpisode.value = Number(detail.episode);
+    selectedShotId.value = Number(detail.id);
+    analysisDismissed.value = false;
+    return;
+  }
+  const item = resultItemsFor(detail.kind).find(item => item.id === Number(detail.id));
+  if (item) selectedResult.value = item;
+}
 const productionCanvasContents = computed(() => {
   const project = analysisProject.value;
   if (!project) return [];
@@ -667,6 +681,8 @@ const productionCanvasContents = computed(() => {
   return [
     { id: prefix + "script", label: "原始剧本文本" },
     { id: prefix + "story", label: "故事与分集大纲" },
+    ...["characters", "scenes", "props"].map(kind => ({ id: prefix + `group-${kind}`, label: { characters: "角色参考素材分组", scenes: "场景参考素材分组", props: "道具参考素材分组" }[kind] || kind })),
+    ...episodeItems.value.map(item => ({ id: prefix + `group-episode-${item.number}`, label: `第 ${item.number} 集 · 分镜视频分组` })),
     ...["characters", "scenes", "props"].flatMap(kind => ((project as any)[kind] || []).map((item: any) => ({ id: prefix + `${{ characters: "character", scenes: "scene", props: "prop" }[kind]}-${item.id}-prompt`, label: `${{ characters: "角色", scenes: "场景", props: "道具" }[kind]} · ${item.name} · 图片提示词` }))),
     ...((project.shots || []) as any[]).map(shot => ({ id: prefix + `shot-${shot.id}-prompt`, label: `第 ${shot.episode_no} 集 · 分镜 ${shot.shot_no} · 首帧与视频提示词` })),
   ];
@@ -755,6 +771,7 @@ onMounted(() => {
     const project = (window as DramaForgeWindow).__DRAMAFORGE_PROJECT__;
     if (project) handleDramaForgeProject(new CustomEvent("dramaforge:project-update", { detail: project }));
     window.addEventListener("dramaforge:project-update", handleDramaForgeProject);
+    window.addEventListener("dramaforge:open-production", openProductionMedia);
     void refreshDramaForgeProject(String(route.query.dramaforgeProjectId));
   }
 });
@@ -762,6 +779,7 @@ onScopeDispose(() => {
   dramaForgeRefreshStopped = true;
   if (dramaForgeRefreshTimer) clearTimeout(dramaForgeRefreshTimer);
   window.removeEventListener("dramaforge:project-update", handleDramaForgeProject);
+  window.removeEventListener("dramaforge:open-production", openProductionMedia);
   if (registeredDramaForgeBridge && (window as DramaForgeWindow).__DRAMAFORGE_CANVAS_BRIDGE__ === registeredDramaForgeBridge) {
     delete (window as DramaForgeWindow).__DRAMAFORGE_CANVAS_BRIDGE__;
   }
