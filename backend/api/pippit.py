@@ -100,6 +100,20 @@ def targetAsset(db, binding):
 targetSubmitLocks = {}
 
 
+@router.get("/targets/{projectId}/{kind}/{targetId}")
+def getTargetTask(projectId: int, kind: str, targetId: int, db: Session = Depends(get_db)):
+    if kind not in {"character", "scene", "prop", "video"}:
+        raise HTTPException(422, "生成目标类型无效")
+    targetAsset(db, {"project_id": projectId, "kind": kind, "target_id": targetId})
+    for task in db.query(pippitTaskRecord).filter_by(project_id=projectId).order_by(pippitTaskRecord.id.desc()).all():
+        result = task.result or {}
+        binding = result.get("binding", {})
+        if binding.get("kind") == kind and binding.get("target_id") == targetId:
+            return {"thread_id": task.thread_id, "run_id": task.run_id, "web_thread_link": task.web_thread_link,
+                    "status": task.status, "binding": binding, "query_error": result.get("binding_error", "")}
+    raise HTTPException(404, "该素材没有已保存的 Pippit 任务")
+
+
 @router.post("/generate-target")
 async def generateTarget(body: TargetRequest, db: Session = Depends(get_db)):
     key = (body.project_id, body.kind, body.target_id)
@@ -166,6 +180,9 @@ async def pollTarget(threadId, runId):
     from database import SessionLocal
     for _ in range(720):
         with SessionLocal() as db:
+            savedTask = db.query(pippitTaskRecord).filter_by(run_id=runId).first()
+            if savedTask and savedTask.status in {"failed", "failure", "error", "canceled", "cancelled", "requires_action", "requires_user_input", "interaction_required"}:
+                return
             try:
                 result = await get_thread(ThreadRequest(thread_id=threadId, run_id=runId), db)
                 status = str(result.get("status", "")).lower()

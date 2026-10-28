@@ -38,7 +38,7 @@
       <div v-if="analysisProject.analysis_state?.status === 'done'" class="analysisResults" :class="{ editingEpisode: productionView === 'episodes' && selectedEpisode !== null }">
         <div v-if="!isEpisodeEditor && productionView === 'assets'" class="generationModels"><generationModelMenu v-model="imageModel" :options="generationModelOptions.image" :defaultLabel="defaultImageModelLabel" :disabled="assetGenerating" /></div>
         <p v-if="modelOptionsError" class="generationModelNote" role="alert">{{ modelOptionsError }}</p>
-        <div v-if="pippitTargetProgress" class="pippitTargetStatus" role="status"><span>{{ pippitTargetProgress }}</span><a v-if="pippitTargetLink" :href="pippitTargetLink" target="_blank" rel="noopener noreferrer">查看 Pippit 任务 ↗</a></div>
+        <div v-if="pippitTargetProgress || activeEpisodeShot?.provider_model === 'pippit' && activeEpisodeShot?.provider_task_id" class="pippitTargetStatus" role="status"><span>{{ pippitTargetProgress || activeEpisodeShot?.last_error || '已保存 Pippit 任务，可查询原任务状态' }}</span><el-button text size="small" :loading="pippitQueryBusy" @click="refreshPippitTarget">刷新原任务状态</el-button><a v-if="pippitTargetLink" :href="pippitTargetLink" target="_blank" rel="noopener noreferrer">查看 Pippit 任务 ↗</a></div>
         <template v-if="productionView === 'episodes'">
           <div v-if="selectedEpisode === null" class="resultHeading"><div><h1>剧集</h1><p>共 {{ episodeItems.length }} 集</p></div><el-button round @click="productionView = 'assets'">制作资产库</el-button></div>
           <div v-if="selectedEpisode === null" class="episodeGrid">
@@ -366,15 +366,23 @@ const defaultVideoModelLabel = ref("选择视频模型");
 const isEpisodeEditor = computed(() => productionView.value === "episodes" && selectedEpisode.value !== null);
 const pippitTargetProgress = ref("");
 const pippitTargetLink = ref("");
+const pippitQueryBusy = ref(false);
+const pippitTargetTask = ref<{ thread_id: string; run_id: string; web_thread_link?: string }>();
 const targetGenerationAbort = new AbortController();
 onScopeDispose(() => targetGenerationAbort.abort());
 async function generateWithPippit(projectId: number, kind: string, targetId: number, message: string) {
   pippitTargetProgress.value = "正在提交 Pippit 生成任务…";
   pippitTargetLink.value = "";
+  pippitTargetTask.value = undefined;
+  let submitted = false;
+  try {
   const submit = await fetch(dramaForgeApiUrl("pippit/generate-target"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ project_id: projectId, kind, target_id: targetId, message }), signal: targetGenerationAbort.signal });
   const task = await submit.json();
   if (!submit.ok) throw new Error(typeof task.detail === "string" ? task.detail : "Pippit 提交失败");
+  submitted = true;
+  pippitTargetTask.value = task;
   pippitTargetLink.value = task.web_thread_link || "";
+  pippitTargetProgress.value = "Pippit 任务已提交，正在查询结果…";
   for (let attempt = 0; attempt < 720; attempt++) {
     if (targetGenerationAbort.signal.aborted) throw new Error("页面已关闭，任务仍在后台继续");
     const response = await fetch(dramaForgeApiUrl("pippit/thread"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ thread_id: task.thread_id, run_id: task.run_id }), signal: targetGenerationAbort.signal });
@@ -387,7 +395,36 @@ async function generateWithPippit(projectId: number, kind: string, targetId: num
     pippitTargetProgress.value = "Pippit 正在生成，完成后会自动保存到当前资产或片段…";
     await new Promise(resolve => setTimeout(resolve, 5000));
   }
-  throw new Error("Pippit 任务仍未完成，可重新点击生成以恢复查询");
+  throw new Error("Pippit 任务仍未完成，请刷新原任务状态，不要重复生成");
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "请求异常";
+    pippitTargetProgress.value = submitted ? `任务已提交，尚未确认生成结果：${message}。请刷新原任务状态，不会重复提交。` : `未确认提交成功：${message}。提交超时也可能已创建远端任务，请先查看官网。`;
+    throw error;
+  }
+}
+async function refreshPippitTarget() {
+  if (pippitQueryBusy.value) return;
+  pippitQueryBusy.value = true;
+  try {
+    const shot = activeEpisodeShot.value;
+    if (analysisProject.value && shot?.provider_model === "pippit" && shot.provider_task_id) {
+      const saved = await fetch(dramaForgeApiUrl(`pippit/targets/${analysisProject.value.id}/video/${shot.id}`));
+      const task = await saved.json();
+      if (!saved.ok) throw new Error(task.detail || "读取已保存任务失败");
+      pippitTargetTask.value = task;
+      pippitTargetLink.value = task.web_thread_link || "";
+      if (["failed", "failure", "error", "requires_action", "requires_user_input", "interaction_required"].includes(task.status) && task.query_error) { pippitTargetProgress.value = task.query_error; return; }
+    }
+    const task = pippitTargetTask.value;
+    if (!task) throw new Error("尚无可查询任务，请先核对官网任务记录");
+    pippitTargetLink.value = task.web_thread_link || "";
+    const response = await fetch(dramaForgeApiUrl("pippit/thread"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ thread_id: task.thread_id, run_id: task.run_id }), signal: targetGenerationAbort.signal });
+    const result = await response.json();
+    if (!response.ok) throw new Error(typeof result.detail === "string" ? result.detail : "状态查询失败");
+    pippitTargetProgress.value = result.binding?.bound_url ? "Pippit 生成完成，成果已保存" : ["failed", "failure", "error", "canceled", "cancelled"].includes(result.status) ? "Pippit 已返回任务未完成，请查看官网回复" : ["requires_action", "requires_user_input", "interaction_required"].includes(result.status) ? "Pippit 需要补充信息，请打开官网任务回复" : "Pippit 已接收任务，尚未返回可保存的成果";
+    if (analysisProject.value) await refreshDramaForgeProject(String(analysisProject.value.id));
+  } catch (error) { pippitTargetProgress.value = `原任务查询暂时失败：${error instanceof Error ? error.message : "未知错误"}。未重新提交生成，请稍后刷新或查看官网任务。`; }
+  finally { pippitQueryBusy.value = false; }
 }
 const generationModelOptions = ref<{ image: { id: string; label: string; description?: string }[]; video: { id: string; label: string; description?: string }[] }>({ image: [{ id: "pippit", label: "Pippit" }], video: [{ id: "pippit", label: "Pippit" }] });
 const modelOptionsError = ref("");
@@ -492,6 +529,12 @@ const shotPromptDraft = ref("");
 const shotBusy = ref(false);
 const episodeShots = computed(() => ((analysisProject.value?.shots || []) as Record<string, any>[]).filter(shot => Number(shot.episode_no) === selectedEpisode.value).sort((a, b) => a.shot_no - b.shot_no));
 const activeEpisodeShot = computed(() => episodeShots.value.find(shot => shot.id === selectedShotId.value) || episodeShots.value[0]);
+watch(() => activeEpisodeShot.value?.id, () => {
+  if (activeEpisodeShot.value?.provider_model) videoModel.value = activeEpisodeShot.value.provider_model;
+  pippitTargetProgress.value = "";
+  pippitTargetLink.value = "";
+  pippitTargetTask.value = undefined;
+});
 const generationSettingsBusy = ref(false);
 const currentGenerationOptions = computed(() => ({ aspect_ratio: (analysisProject.value?.outline as Record<string, any> | undefined)?.aspect_ratio || "9:16", resolution: "720P", mode: "auto", references: null, ...((analysisProject.value?.generation_settings || {}) as Record<string, any>), ...(activeEpisodeShot.value?.generation_settings || {}) }));
 async function saveClipGeneration(key: string, value: string) {

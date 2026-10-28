@@ -72,7 +72,7 @@ def get_project(project_id: int, db: Session = Depends(get_db)):
              "generation_settings": sh.generation_settings or {}, "effective_generation": effective_options(p,sh),
              "direction": sh.direction or {}, "keyframe_prompt": sh.keyframe_prompt or "",
              "keyframe_url": sh.keyframe_url, "video_url": sh.video_url, "last_error": sh.last_error,
-             "video_status": sh.video_status,
+             "video_status": sh.video_status, "provider_model": sh.provider_model, "provider_task_id": sh.provider_task_id,
              "generation_manifest": sh.generation_manifest or {},
              "review_status": sh.review_status or "unreviewed", "review_note": sh.review_note or "",
              "started_at": sh.started_at.isoformat() if sh.started_at else None,
