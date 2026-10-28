@@ -112,7 +112,7 @@ async def enrich_project(db: Session, project_id: int, model: str | None = None,
         asset_system = DIRECTOR_RULES.split("镜头：",1)[0] + "\n本次只分析输入的角色与场景，不分析镜头，不输出shots字段。严格输出 {characters:[{id,design}],scenes:[{id,design}]}。每个ID必须与输入完全一致。\n" + json.dumps(asset_schema,ensure_ascii=False)
         # 资产独立分析，镜头按小批次分析，减少长输出被截断。
         source_signature = hashlib.sha256(json.dumps({
-            "checkpointVersion": 2,
+            "checkpointVersion": 3,
             "script": project.script_text,
             "visual": [project.outline.video_style if project.outline else "", project.outline.aspect_ratio if project.outline else ""],
             "cast": char_input,
@@ -121,9 +121,7 @@ async def enrich_project(db: Session, project_id: int, model: str | None = None,
                        sh.character_names) for sh in shots],
         }, ensure_ascii=False, sort_keys=True).encode()).hexdigest()
         state = project.analysis_state or {}
-        legacySignature = hashlib.sha256(json.dumps({"script": project.script_text, "cast": char_input, "scenes": scene_input,
-            "shots": [(sh.id, sh.episode_no, sh.shot_no, sh.title, sh.duration, sh.scene_name, sh.character_names, sh.prompt, sh.keyframe_prompt, sh.direction) for sh in shots]}, ensure_ascii=False, sort_keys=True).encode()).hexdigest()
-        staged = dict(state.get("staged", {})) if state.get("fingerprint") in {source_signature, legacySignature} else {}
+        staged = dict(state.get("staged", {})) if state.get("fingerprint") == source_signature else {}
         if state.get("fingerprint") == source_signature:
             for key, cachedResult in list(staged.items()):
                 changed = any(db.get(Character, item["id"]).design != item["design"] for item in cachedResult.get("characters", []))
@@ -211,7 +209,7 @@ async def enrich_project(db: Session, project_id: int, model: str | None = None,
             batch = shots[start:start+1]
             def describe(sh):
                 return {"id": sh.id, "episode": sh.episode_no, "shot": sh.shot_no, "duration": sh.duration,
-                        "title": sh.title, "scene": sh.scene_name, "characters": sh.character_names, "prompt": sh.prompt}
+                        "title": sh.title, "scene": sh.scene_name, "characters": sh.character_names, "prompt": sh.prompt, "direction": sh.direction}
             cached = staged.get(f"shot-{start}")
             unitLabel = f"第 {current_shot.episode_no} 集 · 分镜 {current_shot.shot_no} 设计"
             if not cached:
@@ -220,7 +218,7 @@ async def enrich_project(db: Session, project_id: int, model: str | None = None,
             raw = json.dumps(cached, ensure_ascii=False) if cached else await gpt_service.chat_completion(db, system,
                 json.dumps({"script": project.script_text, "cast": char_input, "locations": scene_input,
                             "characters": [], "scenes": [], "shots": [describe(sh) for sh in batch],
-                            "adjacent_shots": [describe(sh) for sh in shots[max(0,start-1):start+4]],
+                            "adjacent_shots": [describe(sh) for sh in shots[max(0,start-1):start+4] if sh.episode_no == current_shot.episode_no],
                             "instruction": "只返回 shots 中的ID；cast和locations只作上下文，characters和scenes返回空列表。重点读取 adjacent_shots：当前镜头必须从上一镜头结束的姿态、视线、道具位置与运动方向自然接入，并说明当前镜头结束后如何交给下一镜头；首尾镜头分别写开场和收束状态，不得无依据重置连续性。把交接写进 direction.continuity，并让视频 prompt 开场动作与承接点一致。"}, ensure_ascii=False),
                 model=model, json_mode=True, max_tokens=5000)
             payload = _parse_json(raw)
@@ -243,10 +241,10 @@ async def enrich_project(db: Session, project_id: int, model: str | None = None,
                 is_wide = any(word in sh.direction.shot_size for word in ("全景", "远景"))
                 if current.character_names and not is_wide and sum(word in sh.direction.performance.lower() for word in anatomy) < 2:
                     micro_raw = await gpt_service.chat_completion(db,
-                        "你是演员表演指导，输出严格JSON {id:镜头ID,performance:中文表演描述}。按每个出场角色分别描述符合剧情的姿态、呼吸、视线和可见面部动作及变化顺序。每个角色至少描述眉/上或下眼睑/嘴角或嘴唇/下颌中的两处，避免只写微笑、悲伤、生气、眼神柔和。不要无故添加哭泣。远景优先身体动作，近景写自然克制的微表情。约150–250中文字符。",
+                        "你是演员表演指导，输出严格JSON {id:镜头ID,performance:中文表演描述}。按每个出场角色分别描述符合剧情的姿态、呼吸、视线和可见面部动作及变化顺序。每个角色至少描述眉/上或下眼睑/嘴角或嘴唇/下颌中的两处，避免只写微笑、悲伤、生气、眼神柔和。不要无故添加哭泣。远景优先身体动作，近景写符合本场冲突强度的表演，不能一律克制。完整保留输入 performance 已有的原文台词、说话者和听话者、语速、音量、重音、停顿及情绪递进；只补充可见动作，不删除或改写这些表演调度，不新增对白。",
                         json.dumps({"id": sh.id, "characters": current.character_names, "title": current.title,
                                     "shot_size": sh.direction.shot_size, "duration": current.duration,
-                                    "timeline": sh.direction.timeline, "action": sh.prompt},ensure_ascii=False),
+                                    "timeline": sh.direction.timeline, "performance": sh.direction.performance, "action": sh.prompt},ensure_ascii=False),
                         model=model,json_mode=True,max_tokens=2000)
                     micro = _parse_json(micro_raw)
                     if not isinstance(micro, dict) or micro.get("id") != sh.id or not isinstance(micro.get("performance"), str):

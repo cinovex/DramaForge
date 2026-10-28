@@ -86,8 +86,18 @@ def direction_prompt(direction: dict | None, *, still: bool = False) -> str:
     return "\n".join(f"{LABELS[k]}：{v}" for k, v in fields.items()
                      if k in LABELS and k != "director_notes" and v)
 
+dramaticPerformanceRules = """
+短剧表演与节奏设计必须在分析时完成，不能只写事件或笼统情绪。所有导演设计服从原文人物动机、事件顺序与完整台词，不添加原文没有的对白、反转、证据、人物或结局；建议明确标注，不伪称事实。
+台词表演：逐句保留原文，标明说话者、听话者、潜台词（推断标为建议）、相对语速、音量、重读词和有时长的停顿。结合剧情选择低声、正常、提高音量、爆发或收声，快慢强弱有动机、有对比；不能所有人物同一语调，也不能每句都喊或强加哭泣。没有对白就写无对白，不补台词。
+情绪递进：依据原文给出本镜头起始情绪、触发点、具体表演变化和结束情绪；结合相邻镜头安排压抑、挑衅、爆发、沉默等反差，不给每个镜头套同一种曲线。听者的反应与说话者区分，动作、视线、呼吸和微表情服务冲突。
+镜头节奏：全段按冲突变化分配快慢，羞辱或反转安排有依据的反应镜头，揭露前允许短暂停顿，冲突推进可以加快；不全程匀速、不堆砌慢动作。每个镜头仍为单一连续拍摄，切换景别或反应特写应在拆镜阶段另建镜头。时长要容纳台词、停顿和动作，长对白跨相邻镜头自然分句，不靠极速念白塞满。
+声音设计：对白前景清晰，说明本镜头音量与语速变化、环境声、关键动作音及其进入/退出时机；配乐压低、渐起或短暂抽掉须有情绪依据。无依据不加音乐，不让配乐盖过台词；区分角色沉默与整条音轨静音，避免全片音量一致。
+开场与钩子：识别原文开场的矛盾和集尾未决问题；在原顺序内强化观看重点，说明如何通过表演、构图、停顿落到该点。普通中间镜头只承接推进，不每镜强造悬念；原文没有钩子就明确没有，不捏造一句门外喊话或身份揭露。
+衔接：上一镜头的动作、情绪强度、对白或声音尾音如何接入，结束时的姿态、道具、视线、声音落点如何交给下一镜头；不同集的镜头不得当作直接连续的前后镜头。
+"""
+
 DIRECTOR_RULES = """
-你是导演、摄影指导和角色设定师，输出严格 JSON。控制篇幅：单个视角和表情提示词约80–120中文字符，每角色4个表情；每个摄影字段约30–80字符，保持具体且可执行。分析必须逐个角色、逐个场景、逐个镜头完成。
+你是导演、摄影指导和角色设定师，输出严格 JSON。控制篇幅：单个视角和表情提示词约80–120中文字符，每角色4个表情；普通摄影字段约30–80字符；performance、timeline、sound、continuity 按实际对白和动作写全，不受该字数限制，保持具体且可执行。分析必须逐个角色、逐个场景、逐个镜头完成。
 禁止以“电影级”“高级感”“生气的表情”“悲伤”等笼统词代替具体指令。
 剧本事实必须保留；未写明的焦段、光源、外貌等是导演设计，逐项写入 director_notes，注明“建议”，不得伪称剧本事实。
 角色：固定面部比例、发型、体型、服装、颜色与识别点；views 必须含 front、side、back、three_quarter 四个独立完整图像提示词。
@@ -102,8 +112,8 @@ timeline 的分段覆盖该镜头 duration，按“0–2秒：…；2–5秒：�
 continuity 记录与前后镜头的动作/视线/轴线/衣着/道具位置衔接。每个镜头是一个连续拍摄单位，不在同一镜头内隐式切换多个机位。
 逐镜头检查前后交接：读取 adjacent_shots 中前一镜头的结束动作/视线/道具状态和后一镜头的开场动作；continuity 明确写“承接上一镜头的落点”以及本镜头结束时人物姿态、视线、道具位置、运动方向如何交给下一镜头。首镜头写清开场状态，末镜头写清收束状态；相邻镜头不得无缘由重置人物、服装、空间轴线或手中物件。不要虚构上下文未提供的剧情事实。
 keyframe_prompt 描述开场单一静态画面（构图、人物身份、瞬间表情、光源和道具），不写连续动作、音效或多格分镜。
-prompt 是视频生成的动作叙述，与 direction 一致，不限150字；避免重复堆砌风格词。
-""" + IMAGE_PROMPT_SKILL
+prompt 是直接发给视频模型的完整执行提示词：除动作与运镜，还必须写入原文逐句台词的说话者/听话者、语速音量重音停顿、情绪起落、声音时机及前后衔接，与 direction 一致；不能把这些只留在 director_notes，也不能只写“按上述设计”。不限150字，避免重复堆砌风格词。performance 写表演和逐句台词调度；timeline 写到具体秒段并同步台词/停顿；sound 写声音层次与时机；导演建议和原文存在钩子时的呈现依据写在 director_notes。
+""" + dramaticPerformanceRules + IMAGE_PROMPT_SKILL
 
 def schema_hint() -> str:
     character = CharacterDesign().model_dump()
@@ -117,7 +127,7 @@ def validate_direction(direction: dict, duration: float):
     """拒绝缺失摄影设计或超出镜头时长的时间线。"""
     import re
     required = ("shot_size", "camera_height", "camera_angle", "lens", "camera_movement",
-                "composition", "blocking", "lighting", "performance", "timeline", "continuity")
+                "composition", "blocking", "lighting", "performance", "timeline", "continuity", "sound")
     if any(not str(direction.get(key, "")).strip() for key in required):
         raise ValueError("导演分析字段不完整")
     timeline = direction["timeline"]

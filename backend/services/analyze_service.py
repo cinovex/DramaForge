@@ -6,7 +6,7 @@ from models.drama import (
 )
 from services import gpt_service
 from services.analysisProgress import updateAnalysisProgress
-from services.director_design import CharacterDesign, SceneDesign, ShotDirection, validate_character, validate_direction, fit_timeline
+from services.director_design import CharacterDesign, SceneDesign, ShotDirection, validate_character, validate_direction, fit_timeline, dramaticPerformanceRules
 from services.image_prompt_skill import IMAGE_PROMPT_SKILL
 from pydantic import ValidationError
 
@@ -82,7 +82,7 @@ ANALYSIS_FLOW_RULES = """
 分析结果须保留原文事件顺序与台词；故事节拍、类型判断、集尾钩子和时长均须有输入依据。每集预计时长依据写入 duration_basis；没有足够依据时明确标为估算。角色/场景/道具名称必须稳定，镜头引用只能使用已提取的真实资产名称。逐镜头写成可独立制作的连续拍摄单位，并让静态首帧提示与视频动作提示各自适配用途，不互相混写。
 """
 
-BASE_SYSTEM_PROMPT = SYSTEM_PROMPT + "\n" + IMAGE_PROMPT_SKILL + "\n" + ANALYSIS_FLOW_RULES
+BASE_SYSTEM_PROMPT = SYSTEM_PROMPT + "\n" + IMAGE_PROMPT_SKILL + "\n" + ANALYSIS_FLOW_RULES + dramaticPerformanceRules
 
 
 async def analyze_project(db: Session, project_id: int, model: str | None = None, already_started: bool = False) -> dict:
