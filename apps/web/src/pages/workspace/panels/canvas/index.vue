@@ -440,7 +440,12 @@ function buildDramaForgeNodes(project: any) {
   for (const [index, kind] of ["characters", "scenes", "props"].entries()) {
     const category = { characters: "角色", scenes: "场景", props: "道具" }[kind];
     const singular = { characters: "character", scenes: "scene", props: "prop" }[kind];
-    addMediaGroup(kind, `${category}参考素材`, (project[kind] || []).map((item: any) => ({ suffix: `${singular}-${item.id}`, category, targetKind: kind, targetId: item.id, kind: "image", label: item.name, url: item.base_image_url || item.image_url || "", prompt: item.design?.turnaround_prompt || item.design?.reference_prompt || item.design?.prompt || item.description || "" })), index * 1000 - 520, 600);
+    addMediaGroup(kind, `${category}参考素材`, (project[kind] || []).map((item: any) => ({ suffix: `${singular}-${item.id}`, category, targetKind: kind, targetId: item.id, kind: "image", audioUrl: kind === "characters" ? project.generation_settings?.characterAudio?.[String(item.id)]?.url : undefined, label: item.name, url: item.base_image_url || item.image_url || "", prompt: item.design?.turnaround_prompt || item.design?.reference_prompt || item.design?.prompt || item.description || "" })).flatMap((item: any) => {
+      if (kind !== "characters") return [item];
+      const source = (project.characters || []).find((character: any) => character.id === item.targetId);
+      const labels: Record<string,string> = { detail_sheet: "详细设定图", turnaround: "四视图", expressions: "表情图", front: "正面", side: "侧面", back: "背面", three_quarter: "四分之三侧面" };
+      return [item, ...Object.entries(source?.reference_images || {}).filter(([, url]) => typeof url === "string" && url && url !== item.url).map(([variant, url]) => ({ ...item, suffix: `${item.suffix}-${variant}`, referenceVariant: variant, label: `${item.label} · ${labels[variant] || variant}`, url }))];
+    }), index * 1000 - 520, 600);
   }
   let groupTop = 600;
   for (const episode of episodeNumbers) {

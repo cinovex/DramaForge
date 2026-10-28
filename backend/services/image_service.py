@@ -62,6 +62,8 @@ def buildAssetPromptBase(kind: str, asset, variant: str = "base") -> str:
         prompt = ""
         if variant in ("front", "side", "back", "three_quarter"):
             prompt = (design.get("views") or {}).get(variant, "")
+        elif variant == "detail_sheet":
+            prompt = "制作同一角色的精细2×2设定图：左上正面头肩近景，右上严格侧面头肩近景，左下正面全身，右下背面全身。头肩图清晰展示五官、发际线、皮肤质感；全身图完整展示固定服装、身形和鞋子。所有格子同一人物、同一套服装、中性表情、柔和中性光、干净背景，无文字、无水印，不新增伤疤、配饰或剧情动作。"
         elif variant == "turnaround":
             prompt = design.get("turnaround_prompt", "")
         elif variant == "expressions":
@@ -289,7 +291,7 @@ async def generate_character_reference(db: Session, project_id: int, char_id: in
     source = c.base_image_url or references.get("front")
     # 单人物主参考锁定身份；拼图只作为展示，不作为视频主体参考。
     ref = _resolve_local_image(source) if source else None
-    size = "1536x1024" if variant in ("turnaround", "expressions") else "1024x1536"
+    size = "1536x1024" if variant in ("turnaround", "expressions", "detail_sheet") else "1024x1536"
     url = await _generate_image(db, prompt, project_id, "characters", size=size, reference_image=ref, model=model)
     references[variant] = url
     c.reference_images = references

@@ -57,7 +57,7 @@
         <template v-else>
         <nav class="resultTabs" aria-label="分析结果分类"><button v-for="tab in resultTabs" :key="tab.key" type="button" :class="{ active: resultTab === tab.key }" @click="resultTab = tab.key">{{ tab.label }} <span>{{ resultItemsFor(tab.key).length }}</span></button></nav>
         <div class="resultHeading"><div><h1>{{ resultTabs.find(tab => tab.key === resultTab)?.label }}</h1><p>分析结果已保存。选择卡片查看描述与生成提示词。</p></div><el-button round @click="analysisDismissed = true">查看画布 ↗</el-button></div>
-        <div v-if="resultTab !== 'shots'" class="assetGenerationBar"><div><strong>{{ selectingAssets ? `已选择 ${selectedAssetIds.length} 项` : '生成制作参考图' }}</strong><p v-if="batchGenerating" role="status">正在生成 {{ batchProgress.completed + 1 }} / {{ batchProgress.total }}：{{ batchProgress.name }}</p><p v-else>{{ batchSummary || '选择需要生成的资产，生成结果会保存到当前项目。' }}</p></div><div class="assetGenerationActions"><template v-if="selectingAssets"><el-button round :disabled="assetGenerating" @click="selectedAssetIds = resultItemsFor(resultTab).map(item => item.id)">全选</el-button><el-button round :disabled="assetGenerating" @click="selectingAssets = false; selectedAssetIds = []">取消</el-button><el-button type="primary" round :loading="batchGenerating" :disabled="!selectedAssetIds.length || assetGenerating && !batchGenerating" @click="generateSelectedImages">生成图片 · {{ selectedAssetIds.length }}</el-button></template><el-button v-else round :disabled="assetGenerating" @click="selectingAssets = true; batchSummary = ''">选择 · 批量生成</el-button></div></div>
+        <div v-if="resultTab !== 'shots'" class="assetGenerationBar"><div><strong>{{ selectingAssets ? `已选择 ${selectedAssetIds.length} 项` : '生成制作参考图' }}</strong><p v-if="batchGenerating" role="status">正在生成 {{ batchProgress.completed + 1 }} / {{ batchProgress.total }}：{{ batchProgress.name }}</p><p v-else>{{ batchSummary || '选择需要生成的资产，生成结果会保存到当前项目。' }}</p></div><div class="assetGenerationActions"><el-select v-if="resultTab === 'characters'" v-model="characterReferenceVariant" aria-label="批量角色参考类型" style="width: 220px" :disabled="assetGenerating"><el-option v-for="item in characterReferenceOptions" :key="item.id" :label="item.label" :value="item.id" /></el-select><template v-if="selectingAssets"><el-button round :disabled="assetGenerating" @click="selectedAssetIds = resultItemsFor(resultTab).map(item => item.id)">全选</el-button><el-button round :disabled="assetGenerating" @click="selectingAssets = false; selectedAssetIds = []">取消</el-button><el-button type="primary" round :loading="batchGenerating" :disabled="!selectedAssetIds.length || assetGenerating && !batchGenerating" @click="generateSelectedImages">生成图片 · {{ selectedAssetIds.length }}</el-button></template><el-button v-else round :disabled="assetGenerating" @click="selectingAssets = true; batchSummary = ''">选择 · 批量生成</el-button></div></div>
         <div class="resultGrid">
           <div v-for="item in resultItemsFor(resultTab)" :key="item.id" class="resultCard" :class="{ selectedAsset: selectingAssets && selectedAssetIds.includes(item.id) }">
             <button type="button" class="assetCardOpen" :aria-pressed="selectingAssets ? selectedAssetIds.includes(item.id) : undefined" @click="selectingAssets ? toggleAssetSelection(item.id) : selectedResult = item">
@@ -105,7 +105,7 @@
       </div>
     </section>
     <el-dialog :modelValue="!!selectedResult" :title="selectedResult?.name" width="760px" class="analysisResultDialog" @close="selectedResult = null">
-      <template v-if="selectedResult"><img v-if="selectedResult.image" class="assetDetailImage" :src="selectedResult.image" :alt="selectedResult.name" /><p class="resultDetailText">{{ selectedResult.description }}</p><template v-if="selectedResult.kind && selectedResult.kind !== 'shots'"><el-select v-model="imageModel" aria-label="参考图生成模型" placeholder="选择图片模型"><el-option v-for="model in generationModelOptions.image" :key="model.id" :label="model.label" :value="model.id" /></el-select></template><h3>生成提示词</h3><p class="resultDetailText">{{ selectedResult.prompt || '尚未生成专用提示词，可先使用上述文字设定。' }}</p><section v-for="section in resultDesignSections" :key="section.label"><h3>{{ section.label }}</h3><p class="resultDetailText">{{ section.text }}</p></section><el-button v-if="selectedResult.prompt" @click="copyResultPrompt">复制提示词</el-button><el-button v-if="selectedResult.kind && selectedResult.kind !== 'shots'" type="primary" :loading="assetGenerating" @click="generateResultImage()">{{ selectedResult.image ? '重新生成参考图' : '生成参考图' }}</el-button></template>
+      <template v-if="selectedResult"><img v-if="selectedReferenceImage" class="assetDetailImage" :src="selectedReferenceImage" :alt="selectedResult.name" /><p v-if="selectedCharacter && !selectedReferenceExists">当前显示主参考图；所选参考类型尚未生成。</p><p class="resultDetailText">{{ selectedResult.description }}</p><template v-if="selectedResult.kind && selectedResult.kind !== 'shots'"><el-select v-model="imageModel" aria-label="参考图生成模型" placeholder="选择图片模型"><el-option v-for="model in generationModelOptions.image" :key="model.id" :label="model.label" :value="model.id" /></el-select></template><section v-if="selectedResult.kind === 'characters'" class="characterMediaOptions"><h3>角色参考类型</h3><el-select v-model="characterReferenceVariant" aria-label="角色参考图类型"><el-option v-for="item in characterReferenceOptions" :key="item.id" :value="item.id" :label="item.label" /></el-select><h3>角色声音</h3><audio v-if="selectedCharacterAudio?.url" :src="selectedCharacterAudio.url" controls preload="metadata" /><input ref="characterAudioInput" type="file" accept=".mp3,.wav,.m4a,.ogg,.flac" hidden @change="uploadCharacterAudio" /><el-button :loading="characterAudioBusy" @click="characterAudioInput?.click()">{{ selectedCharacterAudio ? '更换角色声音' : '上传角色声音' }}</el-button><p>保存与试听你上传的声音；目前尚未接通角色配音生成。音频不会自动发送给生成模型。</p></section><h3>生成提示词</h3><p class="resultDetailText">{{ selectedReferencePrompt || '该类型的专用提示词尚未完成。' }}</p><section v-for="section in resultDesignSections" :key="section.label"><h3>{{ section.label }}</h3><p class="resultDetailText">{{ section.text }}</p></section><el-button v-if="selectedResult.prompt" @click="copyResultPrompt">复制提示词</el-button><el-button v-if="selectedResult.kind && selectedResult.kind !== 'shots'" type="primary" :loading="assetGenerating" @click="generateResultImage()">{{ selectedReferenceExists ? '重新生成所选类型' : '生成所选类型' }}</el-button></template>
     </el-dialog>
     <div class="workspaceTools">
       <div class="productionCanvasTools">
@@ -370,13 +370,13 @@ const pippitQueryBusy = ref(false);
 const pippitTargetTask = ref<{ thread_id: string; run_id: string; web_thread_link?: string }>();
 const targetGenerationAbort = new AbortController();
 onScopeDispose(() => targetGenerationAbort.abort());
-async function generateWithPippit(projectId: number, kind: string, targetId: number, message: string) {
+async function generateWithPippit(projectId: number, kind: string, targetId: number, message: string, variant = "base") {
   pippitTargetProgress.value = "正在提交 Pippit 生成任务…";
   pippitTargetLink.value = "";
   pippitTargetTask.value = undefined;
   let submitted = false;
   try {
-  const submit = await fetch(dramaForgeApiUrl("pippit/generate-target"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ project_id: projectId, kind, target_id: targetId, message }), signal: targetGenerationAbort.signal });
+  const submit = await fetch(dramaForgeApiUrl("pippit/generate-target"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ project_id: projectId, kind, target_id: targetId, message, variant }), signal: targetGenerationAbort.signal });
   const task = await submit.json();
   if (!submit.ok) throw new Error(typeof task.detail === "string" ? task.detail : "Pippit 提交失败");
   submitted = true;
@@ -464,14 +464,24 @@ function toggleAssetSelection(id: number) {
   if (assetGenerating.value) return;
   selectedAssetIds.value = selectedAssetIds.value.includes(id) ? selectedAssetIds.value.filter(value => value !== id) : [...selectedAssetIds.value, id];
 }
-async function requestAssetImage(projectId: number, asset: AnalysisResultItem) {
+async function requestAssetImage(projectId: number, asset: AnalysisResultItem, variant = "base") {
   if (!asset.kind || asset.kind === "shots") throw new Error("请选择角色、场景或道具");
   const key = `${asset.kind}-${asset.id}`;
   generatingAssetKey.value = key;
   delete assetImageErrors.value[key];
   try {
     if (imageModel.value === "pippit") {
-      await generateWithPippit(projectId, { characters: "character", scenes: "scene", props: "prop" }[asset.kind], asset.id, asset.prompt || asset.description);
+      const character = asset.kind === "characters" ? ((analysisProject.value?.characters || []) as any[]).find((item: any) => item.id === asset.id) as any : undefined;
+      const design = character?.design || {};
+      let referencePrompt = variant === "expressions" ? design.expression_sheet_prompt : variant === "turnaround" ? design.turnaround_prompt : ["front", "side", "back", "three_quarter"].includes(variant) ? design.views?.[variant] : asset.prompt;
+      if (asset.kind === "characters" && variant !== "base") {
+        const preview = await fetch(dramaForgeApiUrl(`projects/${projectId}/asset-image-prompt?kind=character&asset_id=${asset.id}&variant=${variant}`));
+        const body = await preview.json();
+        if (!preview.ok) throw new Error(body.detail || "参考提示词读取失败");
+        referencePrompt = body.prompt;
+      }
+      if (variant !== "base" && !referencePrompt) throw new Error("该类型的提示词尚未完成");
+      await generateWithPippit(projectId, { characters: "character", scenes: "scene", props: "prop" }[asset.kind], asset.id, referencePrompt || asset.description, variant);
       await refreshDramaForgeProject(String(projectId));
       if (selectedResult.value?.id === asset.id && selectedResult.value.kind === asset.kind) selectedResult.value = resultItemsFor(asset.kind).find(item => item.id === asset.id) || null;
       return;
@@ -479,7 +489,8 @@ async function requestAssetImage(projectId: number, asset: AnalysisResultItem) {
     const query = new URLSearchParams();
     if (asset.image) query.set("regenerate", "true");
     if (imageModel.value) query.set("model", imageModel.value);
-    const response = await fetch(dramaForgeApiUrl(`projects/${projectId}/${asset.kind}/${asset.id}/generate?${query}`), { method: "POST" });
+    const endpoint = asset.kind === "characters" && variant !== "base" ? `projects/${projectId}/characters/${asset.id}/references/${variant}/generate?${query}` : `projects/${projectId}/${asset.kind}/${asset.id}/generate?${query}`;
+    const response = await fetch(dramaForgeApiUrl(endpoint), { method: "POST" });
     const result = await response.json();
     if (!response.ok) throw new Error(typeof result.detail === "string" ? result.detail : "参考图生成失败");
     await refreshDramaForgeProject(String(projectId));
@@ -494,7 +505,7 @@ async function generateSelectedImages() {
   const project = analysisProject.value;
   const assets = resultItemsFor(resultTab.value).filter(item => selectedAssetIds.value.includes(item.id));
   if (!project || !assets.length || assetGenerating.value) return;
-  try { await ElMessageBox.confirm(`将生成 ${assets.length} 张参考图，已有图片的选中资产将重新生成。${imageModel.value === "pippit" ? '使用 Pippit，可能消耗积分，API 无法预估费用。' : '使用所选图片模型，可能消耗额度。'}是否继续？`, "批量生成图片", { confirmButtonText: "开始生成", cancelButtonText: "取消" }); } catch { return; }
+  try { await ElMessageBox.confirm(`将生成 ${assets.length} 张${resultTab.value === "characters" ? characterReferenceOptions.find(item => item.id === characterReferenceVariant.value)?.label || "参考图" : "参考图"}，已有图片的选中资产将重新生成。${imageModel.value === "pippit" ? '使用 Pippit，可能消耗积分，API 无法预估费用。' : '使用所选图片模型，可能消耗额度。'}是否继续？`, "批量生成图片", { confirmButtonText: "开始生成", cancelButtonText: "取消" }); } catch { return; }
   assetGenerating.value = true;
   batchGenerating.value = true;
   batchProgress.value = { completed: 0, total: assets.length, name: "" };
@@ -502,7 +513,7 @@ async function generateSelectedImages() {
   try {
     for (const asset of assets) {
       batchProgress.value.name = asset.name;
-      try { await requestAssetImage(project.id, asset); succeeded++; } catch { /* 每项失败原因保留在资产卡片，继续已确认的队列。 */ }
+      try { await requestAssetImage(project.id, asset, asset.kind === "characters" ? characterReferenceVariant.value : "base"); succeeded++; } catch { /* 每项失败原因保留在资产卡片，继续已确认的队列。 */ }
       batchProgress.value.completed++;
     }
     batchSummary.value = `生成结束：成功 ${succeeded} 张，失败 ${assets.length - succeeded} 张。`;
@@ -514,10 +525,10 @@ async function generateResultImage(item?: AnalysisResultItem) {
   const asset = item?.kind ? item : selectedResult.value;
   const project = analysisProject.value;
   if (!asset?.kind || asset.kind === "shots" || !project || assetGenerating.value) return;
-  try { await ElMessageBox.confirm(`将生成“${asset.name}”参考图。${imageModel.value === "pippit" ? '使用 Pippit，可能消耗积分，API 无法预估费用。' : '使用所选图片模型，可能消耗额度。'}是否继续？`, "生成参考图", { confirmButtonText: "提交生成", cancelButtonText: "取消" }); } catch { return; }
+  try { await ElMessageBox.confirm(`将生成“${asset.name}”${asset.kind === "characters" ? ({ base: "主参考图", detail_sheet: "详细角色设定图", turnaround: "四视图", expressions: "表情图", front: "正面图", side: "侧面图", back: "背面图" } as Record<string,string>)[characterReferenceVariant.value] || "参考图" : "参考图"}。${imageModel.value === "pippit" ? '使用 Pippit，可能消耗积分，API 无法预估费用。' : '使用所选图片模型，可能消耗额度。'}是否继续？`, "生成参考图", { confirmButtonText: "提交生成", cancelButtonText: "取消" }); } catch { return; }
   assetGenerating.value = true;
   try {
-    await requestAssetImage(project.id, asset);
+    await requestAssetImage(project.id, asset, asset.kind === "characters" ? characterReferenceVariant.value : "base");
     ElMessage.success("参考图已保存");
   } catch (error) { ElMessage.error(error instanceof Error ? error.message : "参考图生成失败"); }
   finally { assetGenerating.value = false; }
@@ -637,6 +648,39 @@ const visibleShotItems = computed(() => {
   return resultItemsFor("shots").filter(item => ids.has(item.id));
 });
 const selectedResult = ref<AnalysisResultItem | null>(null);
+const characterReferenceVariant = ref("detail_sheet");
+const characterReferenceOptions = [{id:'detail_sheet',label:'详细设定图（面部正侧面＋全身前后）'},{id:'turnaround',label:'四视图角色设定图'},{id:'base',label:'单人正面主参考图'},{id:'expressions',label:'表情参考图'},{id:'front',label:'正面'},{id:'side',label:'侧面'},{id:'back',label:'背面'}];
+const selectedCharacter = computed(() => selectedResult.value?.kind === "characters" ? ((analysisProject.value?.characters || []) as any[]).find(item => item.id === selectedResult.value?.id) : undefined);
+const selectedReferencePrompt = computed(() => {
+  const character = selectedCharacter.value;
+  if (!character) return selectedResult.value?.prompt || "";
+  const design = character.design || {};
+  const variant = characterReferenceVariant.value;
+  if (variant === "detail_sheet") return `同一角色精细2×2设定图：正面头肩近景、侧面头肩近景、正面全身、背面全身。固定五官、发型、服装和身形，中性表情，清晰皮肤材质，无文字或水印。角色：${character.description || ""}。${design.identity || ""}。${design.wardrobe || ""}`;
+  return variant === "turnaround" ? design.turnaround_prompt || "" : variant === "expressions" ? design.expression_sheet_prompt || "" : variant === "base" ? design.views?.front || character.description || "" : design.views?.[variant] || "";
+});
+const selectedReferenceExists = computed(() => selectedCharacter.value ? characterReferenceVariant.value === "base" ? !!selectedCharacter.value.base_image_url : !!selectedCharacter.value.reference_images?.[characterReferenceVariant.value] : !!selectedResult.value?.image);
+const selectedReferenceImage = computed(() => selectedCharacter.value ? characterReferenceVariant.value === "base" ? selectedCharacter.value.base_image_url : selectedCharacter.value.reference_images?.[characterReferenceVariant.value] || selectedCharacter.value.base_image_url : selectedResult.value?.image);
+const characterAudioInput = ref<HTMLInputElement>();
+const characterAudioBusy = ref(false);
+const selectedCharacterAudio = computed(() => selectedResult.value?.kind === "characters" ? (analysisProject.value?.generation_settings as any)?.characterAudio?.[String(selectedResult.value.id)] : undefined);
+async function uploadCharacterAudio(event: Event) {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0]; input.value = "";
+  const asset = selectedResult.value, project = analysisProject.value;
+  if (!file || !project || asset?.kind !== "characters") return;
+  if (file.size > 30 * 1024 * 1024) return ElMessage.warning("音频最多30MB");
+  characterAudioBusy.value = true;
+  try {
+    const form = new FormData(); form.append("file", file);
+    const response = await fetch(dramaForgeApiUrl(`projects/${project.id}/characters/${asset.id}/audio`), { method: "POST", body: form });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.detail || "声音上传失败");
+    await refreshDramaForgeProject(String(project.id));
+    ElMessage.success("角色声音已保存到本地项目");
+  } catch (error) { ElMessage.error(error instanceof Error ? error.message : "声音上传失败"); }
+  finally { characterAudioBusy.value = false; }
+}
 const designLabels: Record<string, string> = { identity: "人物身份", wardrobe: "服装与配饰", views: "多视图", front: "正面", side: "侧面", back: "背面", three_quarter: "四分之三侧面", turnaround_prompt: "四视图提示词", expressions: "表情设计", expression_sheet_prompt: "表情参考图提示词", negative_prompt: "避免内容", director_notes: "导演说明", geography: "空间布局", lighting: "灯光", palette: "色彩", atmosphere: "氛围", continuity: "连续性", reference_prompt: "场景参考图提示词", shot_size: "景别", camera_height: "机位高度", camera_angle: "机位角度", lens: "镜头焦段", camera_movement: "运镜", composition: "构图", blocking: "人物调度", performance: "表演", timeline: "动作时间线", sound: "声音", name: "名称", prompt: "提示词" };
 function designText(value: unknown): string {
   if (typeof value === "string") return value;
@@ -662,8 +706,8 @@ function resultItemsFor(key: ResultTab): AnalysisResultItem[] {
   });
 }
 async function copyResultPrompt() {
-  if (!selectedResult.value?.prompt) return;
-  try { await navigator.clipboard.writeText(selectedResult.value.prompt); ElMessage.success("提示词已复制"); }
+  if (!selectedReferencePrompt.value) return;
+  try { await navigator.clipboard.writeText(selectedReferencePrompt.value); ElMessage.success("提示词已复制"); }
   catch { ElMessage.error("复制失败，请手动选取提示词复制"); }
 }
 const analysisStep = computed(() => {
@@ -714,6 +758,7 @@ function openProductionMedia(event: Event) {
     analysisDismissed.value = false;
     return;
   }
+  if (detail.kind === "characters") characterReferenceVariant.value = detail.variant || "base";
   const item = resultItemsFor(detail.kind).find(item => item.id === Number(detail.id));
   if (item) selectedResult.value = item;
 }

@@ -82,6 +82,7 @@ class ThreadRequest(BaseModel):
 
 
 class TargetRequest(BaseModel):
+    variant: str = Field(default="base", pattern="^(base|front|side|back|three_quarter|turnaround|detail_sheet|expressions)$")
     project_id: int = Field(gt=0)
     kind: str = Field(pattern="^(character|scene|prop|video)$")
     target_id: int = Field(gt=0)
@@ -116,11 +117,11 @@ def getTargetTask(projectId: int, kind: str, targetId: int, db: Session = Depend
 
 @router.post("/generate-target")
 async def generateTarget(body: TargetRequest, db: Session = Depends(get_db)):
-    key = (body.project_id, body.kind, body.target_id)
+    key = (body.project_id, body.kind, body.target_id, body.variant)
     async with targetSubmitLocks.setdefault(key, asyncio.Lock()):
         for task in db.query(pippitTaskRecord).filter_by(project_id=body.project_id).all():
             binding = (task.result or {}).get("binding", {})
-            if binding.get("kind") == body.kind and binding.get("target_id") == body.target_id and not binding.get("bound_url") and task.status not in {"failed", "failure", "error", "canceled", "cancelled", "requires_action", "requires_user_input", "interaction_required"}:
+            if binding.get("kind") == body.kind and binding.get("target_id") == body.target_id and binding.get("variant", "base") == body.variant and not binding.get("bound_url") and task.status not in {"failed", "failure", "error", "canceled", "cancelled", "requires_action", "requires_user_input", "interaction_required"}:
                 startTargetPolling(task.thread_id, task.run_id)
                 return {"thread_id": task.thread_id, "run_id": task.run_id, "web_thread_link": task.web_thread_link, "resumed": True}
         return await submitTarget(body, db)
@@ -129,14 +130,15 @@ async def generateTarget(body: TargetRequest, db: Session = Depends(get_db)):
 async def submitTarget(body: TargetRequest, db: Session):
     from services.director_design import ensure_project_idle
     ensure_project_idle(body.project_id, db)
+    if body.kind != "character" and body.variant != "base": raise HTTPException(422, "该素材只支持主参考")
     binding = body.model_dump(exclude={"message"})
     asset = targetAsset(db, binding)
     if body.kind != "video":
-        binding["previous_url"] = asset.base_image_url if body.kind == "character" else asset.image_url
+        binding["previous_url"] = ((asset.reference_images or {}).get(body.variant) if body.variant != "base" else asset.base_image_url) if body.kind == "character" else asset.image_url
     if body.kind == "video" and asset.video_status == "processing":
         raise HTTPException(409, "当前片段正在生成")
     skillDir = _ensure_skill()
-    references = []
+    references = [asset.base_image_url] if body.kind == "character" and body.variant != "base" and asset.base_image_url else []
     if body.kind == "video":
         from models.drama import Character, Scene
         references = [c.base_image_url for c in db.query(Character).filter_by(project_id=body.project_id).all() if c.name in (asset.character_names or []) and c.base_image_url]
@@ -227,13 +229,14 @@ async def bindTargetResult(task, result, db):
             continue
         parsed = urlparse(url)
         host = parsed.hostname or ""
-        if parsed.scheme != "https" or not any(host == d or host.endswith("." + d) for d in ("pippit.ai", "capcut.com", "tiktokcdn.com", "byteoversea.com")):
+        if parsed.scheme != "https" or not any(host == d or host.endswith("." + d) for d in ("pippit.ai", "capcut.com", "tiktokcdn.com", "byteoversea.com", "ibyteimg.com")):
             continue
         suffix = Path(parsed.path).suffix.lower()
         mime = str(item.get("mime") or item.get("format") or "").lower()
         mediaType = " ".join(str(item.get(key, "")) for key in ("type", "sub_type", "path")).lower()
         video = mime.startswith("video") or mime in {"mp4", "mov", "webm"} or suffix in {".mp4", ".mov", ".webm"} or "video" in mediaType
-        if video == (binding["kind"] == "video"):
+        image = mime.startswith("image") or mime in {"png", "jpg", "jpeg", "webp"} or suffix in {".png", ".jpg", ".jpeg", ".webp", ".image"} or "x_data_image" in mediaType
+        if (video if binding["kind"] == "video" else image):
             urls.append(url)
     if not urls:
         raise HTTPException(409, "Pippit 未返回所需类型的生成素材，请查看任务回复")
@@ -260,12 +263,14 @@ async def bindTargetResult(task, result, db):
     else:
         from services.image_service import _store_image_prompt
         from models.drama import ImageSource
-        currentUrl = asset.base_image_url if binding["kind"] == "character" else asset.image_url
+        variant = binding.get("variant", "base")
+        currentUrl = ((asset.reference_images or {}).get(variant) if variant != "base" else asset.base_image_url) if binding["kind"] == "character" else asset.image_url
         if currentUrl != binding.get("previous_url", currentUrl):
             raise HTTPException(409, "该资产已有更新的图片，Pippit 旧任务结果保留在项目文件夹，不覆盖当前图片")
         if binding["kind"] == "character":
             asset.extra_images = list(dict.fromkeys([*(asset.extra_images or []), *([asset.base_image_url] if asset.base_image_url else []), url]))[-20:]
-            asset.base_image_url = url
+            if variant != "base": asset.reference_images = {**(asset.reference_images or {}), variant: url}
+            if variant == "base" or not asset.base_image_url: asset.base_image_url = url
         else:
             if binding["kind"] == "scene":
                 asset.image_versions = list(dict.fromkeys([*(asset.image_versions or []), *([asset.image_url] if asset.image_url else []), url]))[-20:]
@@ -476,7 +481,7 @@ async def importResults(body: ThreadRequest, db: Session = Depends(get_db)):
             parsed = urlparse(url)
             host = parsed.hostname or ""
             if parsed.scheme == "https" and any(host == domain or host.endswith("." + domain)
-                    for domain in ("pippit.ai", "capcut.com", "tiktokcdn.com", "byteoversea.com")):
+                    for domain in ("pippit.ai", "capcut.com", "tiktokcdn.com", "byteoversea.com", "ibyteimg.com")):
                 if url not in urls:
                     urls.append(url)
         if not urls:

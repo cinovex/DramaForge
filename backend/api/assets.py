@@ -94,7 +94,7 @@ async def upload_asset_image(project_id: int, kind: str, asset_id: int,
     if kind != "character" and variant != "base":
         raise HTTPException(400, "场景与道具只支持主参考图")
     if kind == "character" and variant != "base" and not (
-        variant in {"front", "side", "back", "three_quarter", "turnaround", "expressions"}
+        variant in {"front", "side", "back", "three_quarter", "turnaround", "detail_sheet", "expressions"}
         or (variant.startswith("expression_") and variant.removeprefix("expression_").isdigit())
     ):
         raise HTTPException(400, "不支持的角色参考类型")
@@ -258,3 +258,41 @@ async def gen_keyframe(project_id: int, shot_id: int, model: str | None = Query(
         url = await image_service.generate_keyframe(db, project_id, shot_id, model)
         return {"ok": True, "url": url}
     except gpt_service.GPTError as e: raise HTTPException(e.status_code, e.message)
+
+
+@router.post("/projects/{project_id}/characters/{char_id}/audio")
+async def uploadCharacterAudio(project_id: int, char_id: int, file: UploadFile = File(...), db: Session = Depends(get_db)):
+    import asyncio, json, math, subprocess
+    from models.drama import Character, Project
+    from api.batch import FFPROBE
+    character = db.query(Character).filter_by(project_id=project_id, id=char_id).first()
+    if not character: raise HTTPException(404, "角色不存在")
+    suffix = Path(file.filename or "").suffix.lower()
+    if suffix not in {".mp3", ".wav", ".m4a", ".ogg", ".flac"}: raise HTTPException(422, "支持 MP3/WAV/M4A/OGG/FLAC 音频")
+    content = await file.read(MAX_UPLOAD_BYTES + 1)
+    if not content or len(content) > MAX_UPLOAD_BYTES: raise HTTPException(422, "音频不能为空且不能超过30MB")
+    directory = project_directory(project_id) / "audio" / "characters"
+    directory.mkdir(parents=True, exist_ok=True)
+    path = directory / (uuid.uuid4().hex + suffix)
+    try:
+        path.write_bytes(content)
+        result = await asyncio.to_thread(subprocess.run, [FFPROBE, "-v", "error", "-show_entries", "format=duration:stream=codec_type", "-of", "json", str(path)], capture_output=True, text=True, timeout=30)
+        if result.returncode: raise ValueError("无法解析音频")
+        info = json.loads(result.stdout)
+        streams = info.get("streams", [])
+        duration = float(info["format"]["duration"])
+        if not any(stream.get("codec_type") == "audio" for stream in streams) or any(stream.get("codec_type") == "video" for stream in streams) or not math.isfinite(duration) or duration <= 0 or duration > 300:
+            raise ValueError("请上传最长300秒的纯音频")
+        project = db.get(Project, project_id)
+        settings = dict(project.generation_settings or {})
+        record = {"url": f"/storage/projects/{project_id}/audio/characters/{path.name}", "duration": round(duration, 2), "name": (file.filename or "角色声音")[:200]}
+        settings["characterAudio"] = {**settings.get("characterAudio", {}), str(char_id): record}
+        project.generation_settings = settings
+        db.commit()
+        return {"ok": True, **record}
+    except (ValueError, KeyError, subprocess.TimeoutExpired) as error:
+        db.rollback(); path.unlink(missing_ok=True)
+        raise HTTPException(422, "音频解析失败，请上传有效且最长300秒的纯音频") from error
+    except Exception:
+        db.rollback(); path.unlink(missing_ok=True)
+        raise

@@ -12,7 +12,7 @@ Ratio = Literal['21:9','16:9','4:3','1:1','3:4','9:16']
 class ReferenceChoice(BaseModel):
     kind: Literal['character','scene','prop']
     id: int = Field(gt=0)
-    variant: str = Field(default='base',pattern=r'^(base|front|side|back|three_quarter|turnaround|expressions|expression_\d+)$')
+    variant: str = Field(default='base',pattern=r'^(base|front|side|back|three_quarter|turnaround|detail_sheet|expressions|expression_\d+)$')
 class GenerationOptions(BaseModel):
     aspect_ratio: Ratio | None = None
     resolution: Literal['720P','1080P','1K','2K'] | None = None
