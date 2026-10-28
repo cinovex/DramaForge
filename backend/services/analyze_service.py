@@ -33,10 +33,12 @@ SYSTEM_PROMPT = """你是专业短剧编剧兼分镜师。请把用户剧本解�
   "episodes": [{
     "ep_no": 1,
     "title": "集名",
-    "summary": "本集事件与关系推进",
-    "conflict": "本集核心冲突",
-    "turning_point": "本集关键转折；原文没有则说明",
-    "ending_hook": "本集原文结尾钩子；没有则说明",
+    "summary": "按开场悬念、冲突升级、高潮兑现、结尾新悬念说明本集节奏；缺失阶段明确原文未体现",
+    "opening_hook": "原文开场问题，以及承接上一集悬念的已有情节；没有则说明",
+    "conflict": "冲突如何逐步升级：人物目标、阻碍、施压动作和代价，引用原文依据",
+    "turning_point": "高潮兑现：本集实际兑现的反击、揭露或情感变化及原文依据；没有则说明",
+    "ending_hook": "本集末尾已有的新问题，不能把本集应兑现的高潮一律拖到下一集；没有则说明",
+    "next_episode_bridge": "下一集原文如何承接该问题：仅有后续原文证据才写展开或答案，否则写待后续剧本确认",
     "estimated_duration": 60,
     "duration_basis": "依据对白、动作与停顿估算",
     "shots": [{
@@ -259,6 +261,9 @@ async def analyzeSegment(db: Session, project_id: int, model, segment, segmentIn
         existingEpisode["shots"] = [*existingEpisode.get("shots", []), *incomingEpisode["shots"]]
         existingEpisode["summary"] = "\n".join(filter(None, [existingEpisode.get("summary"), incomingEpisode.get("summary")]))
         existingEpisode["ending_hook"] = incomingEpisode.get("ending_hook", "")
+        existingEpisode["next_episode_bridge"] = incomingEpisode.get("next_episode_bridge", "")
+        for field in ("conflict", "turning_point"):
+            existingEpisode[field] = "\n".join(filter(None, [existingEpisode.get(field), incomingEpisode.get(field)]))
         existingEpisode["estimated_duration"] = sum(sh["duration"] for sh in existingEpisode["shots"])
     else:
         episodes.append(incomingEpisode)

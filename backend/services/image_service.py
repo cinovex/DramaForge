@@ -309,7 +309,7 @@ async def generate_keyframe(db: Session, project_id: int, shot_id: int, model: s
     chars = db.query(Character).filter(Character.project_id == project_id, Character.name.in_(shot.character_names or [])).all()
     scene = db.query(Scene).filter_by(project_id=project_id, name=shot.scene_name).first()
     outline = db.query(Outline).filter_by(project_id=project_id).first()
-    identities = "\n".join(f"{c.name}：{c.description}；{(c.design or {}).get('identity','')}；{(c.design or {}).get('wardrobe','')}" for c in chars)
+    identities = "\n".join(f"{c.name}：{(c.design or {}).get('identity') or c.description}；{(c.design or {}).get('wardrobe','')}" for c in chars)
     source = next((c.base_image_url or (c.reference_images or {}).get("front") for c in chars
                    if c.base_image_url or (c.reference_images or {}).get("front")), None)
     source = source or (scene.image_url if scene else None)
@@ -331,7 +331,7 @@ async def generate_keyframe(db: Session, project_id: int, shot_id: int, model: s
         if image:
             references.append(image)
             reference_roles.append(f"参考图{len(references)} = {item['name']}（{item['kind']}），保持相应外貌、服装、空间或道具一致")
-    prompt = f"生成单一分镜开场关键帧，不是拼图、不是多格漫画。\n{shot.keyframe_prompt}\n{direction_prompt(shot.direction, still=True)}\n人物设定：{identities}\n场景：{scene.description if scene else shot.scene_name}\n全片视觉：{outline.video_style if outline else ''}\n保持人物面容和服饰一致，无字幕、文字、水印。"
+    prompt = f"生成单一分镜开场关键帧，不是拼图、不是多格漫画。\n{shot.keyframe_prompt}\n人物设定：{identities}\n场景：{scene.description if scene else shot.scene_name}\n全片视觉：{outline.video_style if outline else ''}\n保持人物面容和服饰一致，无字幕、文字、水印。"
     from services.generation_design import effective_options, format_prompt
     from models.drama import Project
     ratio = effective_options(db.get(Project,project_id),shot)["aspect_ratio"]

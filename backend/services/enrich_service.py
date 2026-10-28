@@ -112,7 +112,7 @@ async def enrich_project(db: Session, project_id: int, model: str | None = None,
         asset_system = DIRECTOR_RULES.split("镜头：",1)[0] + "\n本次只分析输入的角色与场景，不分析镜头，不输出shots字段。严格输出 {characters:[{id,design}],scenes:[{id,design}]}。每个ID必须与输入完全一致。\n" + json.dumps(asset_schema,ensure_ascii=False)
         # 资产独立分析，镜头按小批次分析，减少长输出被截断。
         source_signature = hashlib.sha256(json.dumps({
-            "checkpointVersion": 3,
+            "checkpointVersion": 4,
             "script": project.script_text,
             "visual": [project.outline.video_style if project.outline else "", project.outline.aspect_ratio if project.outline else ""],
             "cast": char_input,
@@ -216,7 +216,7 @@ async def enrich_project(db: Session, project_id: int, model: str | None = None,
                 recordAnalysisUnit(db, project, f"shot-{start}", unitLabel, "running")
                 db.commit()
             raw = json.dumps(cached, ensure_ascii=False) if cached else await gpt_service.chat_completion(db, system,
-                json.dumps({"script": project.script_text, "cast": char_input, "locations": scene_input,
+                json.dumps({"script": project.script_text, "episode_plan": {key: value for key, value in next((ep for ep in ((project.outline.raw_data or {}).get("episodes", []) if project.outline else []) if ep.get("ep_no") == current_shot.episode_no), {}).items() if key in ("ep_no", "title", "summary", "opening_hook", "conflict", "turning_point", "ending_hook", "next_episode_bridge")}, "cast": char_input, "locations": scene_input,
                             "characters": [], "scenes": [], "shots": [describe(sh) for sh in batch],
                             "adjacent_shots": [describe(sh) for sh in shots[max(0,start-1):start+4] if sh.episode_no == current_shot.episode_no],
                             "instruction": "只返回 shots 中的ID；cast和locations只作上下文，characters和scenes返回空列表。重点读取 adjacent_shots：当前镜头必须从上一镜头结束的姿态、视线、道具位置与运动方向自然接入，并说明当前镜头结束后如何交给下一镜头；首尾镜头分别写开场和收束状态，不得无依据重置连续性。把交接写进 direction.continuity，并让视频 prompt 开场动作与承接点一致。"}, ensure_ascii=False),

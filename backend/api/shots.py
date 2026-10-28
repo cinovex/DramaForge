@@ -23,7 +23,7 @@ def _build_prompt(
     # 场景
     scene_part = (
         f"场景：{scene.name}（{scene.description}）"
-        if scene and scene.description else
+        if scene and scene.description and not scene.image_url else
         f"场景：{scene.name}" if scene else
         "（无场景信息）"
     )
@@ -32,7 +32,7 @@ def _build_prompt(
     if characters:
         char_descs = []
         for ch in characters:
-            d = ch.description.strip() if ch.description else ""
+            d = ch.description.strip() if ch.description and not (ch.base_image_url or (ch.reference_images or {}).get("front")) else "沿用绑定参考图的面容与服装"
             char_descs.append(f"{ch.name}（{d}）" if d else ch.name)
         char_part = "出场角色：" + "、".join(char_descs)
     elif shot.character_names:
@@ -55,7 +55,7 @@ def _build_prompt(
     )
 
     from services.director_design import direction_prompt
-    detailed = direction_prompt(shot.direction)
+    detailed = direction_prompt(shot.direction) if not shot.prompt.strip() else ""
     return f"{scene_part}。{char_part}。{shot.prompt}\n{detailed}{constraint}"
 
 
