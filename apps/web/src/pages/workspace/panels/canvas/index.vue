@@ -295,7 +295,7 @@ function dramaForgeTextNode(projectId: number, suffix: string, label: string, te
     id: `dramaforge-${projectId}-${suffix}`,
     type: "remote-textNode",
     position: { x, y },
-    data: { label, textSnapshot: text, dramaforgeProjectId: projectId, dramaforgeContentHash: dramaForgeHash(text) },
+    data: { label, textSnapshot: text, dramaforgeProjectId: projectId, dramaforgeContentHash: dramaForgeHash(text), dramaforgeLayoutVersion: 2 },
   };
 }
 
@@ -350,7 +350,8 @@ function buildDramaForgeNodes(project: any) {
     ].filter(Boolean).join("\n")).join("\n\n")}`,
     `## 原始剧本\n${project.script_text || "暂无剧本文本"}`,
   ].filter(Boolean).join("\n\n");
-  nodes.push(dramaForgeTextNode(projectId, "story", "故事与分集", storyText, -520, 0));
+  nodes.push(dramaForgeTextNode(projectId, "script", "原始剧本文本", project.script_text || "暂无剧本文本", -1000, 0));
+  nodes.push(dramaForgeTextNode(projectId, "story", "剧本文本与分集大纲", storyText, -520, 0));
 
   const characters = Array.isArray(project.characters) ? project.characters : [];
   const assetSections: string[] = ["# 角色 / 场景 / 道具连续性"];
@@ -371,24 +372,27 @@ function buildDramaForgeNodes(project: any) {
       design.negative_prompt && `避免：${design.negative_prompt}`,
       design.director_notes && `导演备注：${design.director_notes}`,
     ].filter(Boolean).join("\n\n"));
+    nodes.push(dramaForgeTextNode(projectId, `character-${character.id}-prompt`, `角色 · ${character.name} · 图片提示词`, assetSections.at(-1) || "", -520, 600 + characters.indexOf(character) * 650));
     const media = new Map<string, string>();
     if (character.base_image_url) media.set("主参考", character.base_image_url);
     for (const [variant, url] of Object.entries(references)) if (typeof url === "string" && url) media.set(variant, url);
     [...media.entries()].forEach(([variant, url], imageIndex) => {
-      nodes.push(dramaForgeMediaNode(projectId, `character-${character.id}-image-${imageIndex}`, "image", `${character.name || "角色"} · ${variant}`, url, 300 + imageIndex * 280, 1900 + characters.indexOf(character) * 320));
+      nodes.push(dramaForgeMediaNode(projectId, `character-${character.id}-image-${imageIndex}`, "image", `${character.name || "角色"} · ${variant}`, url, -180 + imageIndex * 280, 600 + characters.indexOf(character) * 650));
     });
   });
 
   const scenes = Array.isArray(project.scenes) ? project.scenes : [];
   scenes.forEach((scene: any, index: number) => {
     assetSections.push([`## 场景：${scene.name || "未命名场景"}`, `剧本事实：${scene.description || "暂无场景描述"}`, `连续性与场景提示词：\n${JSON.stringify(scene.design || {}, null, 2)}`].join("\n\n"));
-    if (scene.image_url) nodes.push(dramaForgeMediaNode(projectId, `scene-${scene.id}-image`, "image", `${scene.name || "场景"} · 参考图`, scene.image_url, 1150, 1900 + index * 360));
+    nodes.push(dramaForgeTextNode(projectId, `scene-${scene.id}-prompt`, `场景 · ${scene.name} · 图片提示词`, assetSections.at(-1) || "", 600, 600 + index * 650));
+    if (scene.image_url) nodes.push(dramaForgeMediaNode(projectId, `scene-${scene.id}-image`, "image", `${scene.name || "场景"} · 参考图`, scene.image_url, 940, 600 + index * 650));
   });
 
   const props = Array.isArray(project.props) ? project.props : [];
   props.forEach((item: any, index: number) => {
     assetSections.push([`## 道具：${item.name || "未命名道具"}`, item.description || "暂无道具描述"].join("\n\n"));
-    if (item.image_url) nodes.push(dramaForgeMediaNode(projectId, `prop-${item.id}-image`, "image", `${item.name || "道具"} · 参考图`, item.image_url, 1580, 1900 + index * 360));
+    nodes.push(dramaForgeTextNode(projectId, `prop-${item.id}-prompt`, `道具 · ${item.name} · 图片提示词`, [assetSections.at(-1), item.design?.prompt || item.design?.reference_prompt || item.description].filter(Boolean).join("\n\n图片提示词：\n"), 1720, 600 + index * 650));
+    if (item.image_url) nodes.push(dramaForgeMediaNode(projectId, `prop-${item.id}-image`, "image", `${item.name || "道具"} · 参考图`, item.image_url, 2060, 600 + index * 650));
   });
   nodes.push(dramaForgeTextNode(projectId, "assets", "角色 / 场景 / 道具连续性", assetSections.join("\n\n---\n\n"), 300, 0));
 
@@ -417,17 +421,19 @@ function buildDramaForgeNodes(project: any) {
         JSON.stringify(shot.direction || {}, null, 2),
       ].join("\n\n");
       storyboardSections.push(text);
-      const x = 2150 + column * 420;
-      const y = 1900 + episodeTop + row * 320;
-      if (shot.keyframe_url) nodes.push(dramaForgeMediaNode(projectId, `shot-${shot.id}-keyframe`, "image", `EP${episode} · 镜头 ${shot.shot_no} · 关键帧`, shot.keyframe_url, x, y));
-      if (shot.video_url) nodes.push(dramaForgeMediaNode(projectId, `shot-${shot.id}-video`, "video", `EP${episode} · 镜头 ${shot.shot_no} · 视频`, shot.video_url, x + 250, y));
+      const x = 2840 + column * 940;
+      const y = 600 + episodeTop + row * 650;
+      nodes.push(dramaForgeTextNode(projectId, `shot-${shot.id}-prompt`, `第 ${episode} 集 · 分镜 ${shot.shot_no} · 首帧与视频提示词`, text, x, y));
+      if (shot.keyframe_url) nodes.push(dramaForgeMediaNode(projectId, `shot-${shot.id}-keyframe`, "image", `EP${episode} · 镜头 ${shot.shot_no} · 关键帧`, shot.keyframe_url, x + 340, y));
+      if (shot.video_url) nodes.push(dramaForgeMediaNode(projectId, `shot-${shot.id}-video`, "video", `EP${episode} · 镜头 ${shot.shot_no} · 视频`, shot.video_url, x + 620, y));
     });
-    episodeTop += Math.max(1, Math.ceil(list.length / 3)) * 420 + 180;
+    episodeTop += Math.max(1, Math.ceil(list.length / 3)) * 650 + 180;
   }
   nodes.push(dramaForgeTextNode(projectId, "storyboard", "逐镜导演设计与完整提示词", storyboardSections.join("\n\n---\n\n"), 1120, 0));
   return nodes;
 }
 
+let dramaForgeViewChecked = false;
 async function syncDramaForgeProject(project: any) {
   if (!props.active || !canvasReady.value || !project?.id || !canvasId.value) throw new Error("Toonflow 画布尚未就绪，请稍后重试");
   const projectId = Number(project.id);
@@ -436,6 +442,7 @@ async function syncDramaForgeProject(project: any) {
   const current = flow.getNodes.value;
   const owned = current.filter(node => node.data?.dramaforgeProjectId === projectId);
   const ownedIds = new Set(owned.map(node => node.id));
+  const needsReadableView = !dramaForgeViewChecked && viewport.value.zoom < 0.4 || owned.length === 0 || owned.some(node => node.type === "remote-textNode" && node.data?.dramaforgeLayoutVersion !== 2);
   const add: any[] = [];
   const replace: string[] = [];
 
@@ -460,7 +467,8 @@ async function syncDramaForgeProject(project: any) {
   }
 
   const stale = owned.filter(node => !wantedById.has(node.id)).map(node => node.id);
-  const firstSync = owned.length === 0;
+  const firstSync = needsReadableView;
+  dramaForgeViewChecked = true;
   const textAdds = add.filter(node => node.type === "remote-textNode");
   if (textAdds.length) {
     const directory = workspaceStore.project?.directory;
@@ -487,7 +495,7 @@ async function syncDramaForgeProject(project: any) {
   });
   await nextTick();
   await flushCanvasSave();
-  if (firstSync && wanted.length) requestAnimationFrame(() => void flow.fitView({ nodes: wanted.map(node => node.id), padding: 0.12, minZoom: 0.16, maxZoom: 0.72, duration: 350 }));
+  if (firstSync && wanted.length) requestAnimationFrame(() => void flow.fitView({ nodes: [`dramaforge-${projectId}-script`], padding: 0.2, minZoom: 0.8, maxZoom: 1, duration: 350 }));
   return { nodes: wanted.length, canvas: canvasId.value };
 }
 

@@ -108,7 +108,12 @@
       <template v-if="selectedResult"><img v-if="selectedResult.image" class="assetDetailImage" :src="selectedResult.image" :alt="selectedResult.name" /><p class="resultDetailText">{{ selectedResult.description }}</p><h3>生成提示词</h3><p class="resultDetailText">{{ selectedResult.prompt || '尚未生成专用提示词，可先使用上述文字设定。' }}</p><section v-for="section in resultDesignSections" :key="section.label"><h3>{{ section.label }}</h3><p class="resultDetailText">{{ section.text }}</p></section><el-button v-if="selectedResult.prompt" @click="copyResultPrompt">复制提示词</el-button><el-button v-if="selectedResult.kind && selectedResult.kind !== 'shots'" type="primary" :loading="assetGenerating" @click="generateResultImage()">{{ selectedResult.image ? '重新生成参考图' : '生成参考图' }}</el-button></template>
     </el-dialog>
     <div class="workspaceTools">
+      <div class="productionCanvasTools">
+      <el-select v-if="analysisProject && activePanel === 'canvas'" :modelValue="''" filterable placeholder="定位剧本 / 提示词" aria-label="定位画布内容" style="width: 180px" @change="focusProductionContent"><el-option v-for="item in productionCanvasContents" :key="item.id" :label="item.label" :value="item.id" /></el-select>
       <el-tag v-if="analysisProject?.generation_settings?.creativePreferences?.styleName" size="small" effect="plain">风格 · {{ analysisProject.generation_settings.creativePreferences.styleName }}</el-tag>
+      <el-button v-if="analysisProject?.analysis_state?.status" class="analysisResultsButton" round size="small" @click="analysisDismissed = false">{{ analysisProject.analysis_state.status === 'done' ? '分析结果' : '分析进度' }}</el-button>
+      <el-button round size="small" @click="router.push({ path: '/home', query: { section: 'dreamina', projectId: analysisProject?.id } })">即梦画布</el-button>
+      </div>
       <el-segmented :modelValue="activePanel" class="panelSwitcher" :options="panelOptions" size="small" aria-label="切换面板" @change="switchPanel">
         <template #default="{ item }">
           <span class="panelOption">
@@ -117,8 +122,6 @@
           </span>
         </template>
       </el-segmented>
-      <el-button v-if="analysisProject?.analysis_state?.status" class="analysisResultsButton" round size="small" @click="analysisDismissed = false">{{ analysisProject.analysis_state.status === 'done' ? '分析结果' : '分析进度' }}</el-button>
-      <el-button round size="small" @click="router.push({ path: '/home', query: { section: 'dreamina', projectId: analysisProject?.id } })">即梦画布</el-button>
       <div class="bottomTools">
         <el-card v-if="activePanel === 'canvas'" class="toolMenu" shadow="never" :bodyStyle="{ padding: '3px 6px' }">
           <div class="toolMenuContent" role="toolbar" aria-label="画布工具">
@@ -657,6 +660,27 @@ async function pauseAnalysis() {
   finally { analysisRetrying.value = false; }
 }
 
+const productionCanvasContents = computed(() => {
+  const project = analysisProject.value;
+  if (!project) return [];
+  const prefix = `dramaforge-${project.id}-`;
+  return [
+    { id: prefix + "script", label: "原始剧本文本" },
+    { id: prefix + "story", label: "故事与分集大纲" },
+    ...["characters", "scenes", "props"].flatMap(kind => ((project as any)[kind] || []).map((item: any) => ({ id: prefix + `${{ characters: "character", scenes: "scene", props: "prop" }[kind]}-${item.id}-prompt`, label: `${{ characters: "角色", scenes: "场景", props: "道具" }[kind]} · ${item.name} · 图片提示词` }))),
+    ...((project.shots || []) as any[]).map(shot => ({ id: prefix + `shot-${shot.id}-prompt`, label: `第 ${shot.episode_no} 集 · 分镜 ${shot.shot_no} · 首帧与视频提示词` })),
+  ];
+});
+async function focusProductionContent(nodeId: string) {
+  try {
+    if (!canvasPanelRef.value?.canvasReady) throw new Error("画布正在同步，请稍后重试");
+    const context = canvasPanelRef.value.getCanvasContext();
+    if (!context) throw new Error("画布尚未就绪");
+    const result = await context.call({ name: "fitCanvas", args: { nodeIds: [nodeId] } }) as { fitted: boolean };
+    if (!result.fitted) throw new Error("该节点尚未同步，请稍后重试");
+  } catch (error) { ElMessage.warning(error instanceof Error ? error.message : "定位失败"); }
+}
+
 function dramaForgeCanvasSignature(project: DramaForgeProject) {
   return JSON.stringify({
     script: project.script_text,
@@ -1021,6 +1045,7 @@ function saveDocumentNode(directory: string, canvasPath: string, nodeId: string,
     container: workspaceTools / inline-size;
     pointer-events: none;
 
+    .productionCanvasTools { position: absolute; top: 60px; right: 16px; z-index: 5; display: flex; align-items: center; gap: 8px; pointer-events: auto; flex-wrap: wrap; justify-content: flex-end; max-width: calc(100% - 32px); .analysisResultsButton { margin: 0; } :deep(.el-button) { margin-left: 0; } }
     .panelSwitcher {
       --el-border-radius-base: 999px;
       --el-segmented-bg-color: var(--el-bg-color-overlay);
