@@ -31,7 +31,7 @@
         <button class="analysisBack" type="button" :aria-label="isEpisodeEditor ? '返回剧集' : '返回项目资源'" @click="isEpisodeEditor ? selectedEpisode = null : router.push('/home?section=projects')">‹</button>
         <span class="analysisProjectName">{{ isEpisodeEditor ? `第 ${selectedEpisode} 集 · ${analysisProject.name}` : analysisProject.name }}</span>
         <el-tag v-if="analysisProject.generation_settings?.creativePreferences?.styleName" size="small" effect="plain">{{ analysisProject.generation_settings.creativePreferences.styleName }}</el-tag>
-        <template v-if="isEpisodeEditor"><span class="episodeSaved">● {{ editingShotPrompt ? '未保存' : generationSettingsBusy || shotBusy ? '正在处理' : '已保存' }}</span><div class="episodeHeaderTools"><generationModelMenu v-model="videoModel" :options="generationModelOptions.video" :defaultLabel="defaultVideoModelLabel" :disabled="shotBusy || videoBatchRunning || activeEpisodeShot?.video_status === 'processing'" /><el-select class="compactSetting" :modelValue="videoModel === 'pippit' ? '自动' : currentGenerationOptions.resolution" :disabled="videoModel === 'pippit' || videoBatchRunning || generationSettingsBusy || activeEpisodeShot?.video_status === 'processing'" aria-label="视频清晰度" @change="saveClipGeneration('resolution', $event)"><el-option v-for="value in ['720P', '1080P', '1K', '2K']" :key="value" :label="value.toLowerCase()" :value="value" /></el-select><el-select class="compactSetting" :modelValue="videoModel === 'pippit' ? '自动' : currentGenerationOptions.aspect_ratio" :disabled="videoModel === 'pippit' || videoBatchRunning || generationSettingsBusy || activeEpisodeShot?.video_status === 'processing'" aria-label="视频画幅" @change="saveClipGeneration('aspect_ratio', $event)"><el-option v-for="value in ['9:16', '16:9', '1:1', '3:4', '4:3', '21:9']" :key="value" :label="value" :value="value" /></el-select></div></template>
+        <template v-if="isEpisodeEditor"><nav class="episodeNavigation" aria-label="切换剧集"><el-button size="small" round :disabled="!previousEpisode || episodeSwitchBusy" @click="switchEpisode(previousEpisode)">‹ 上一集</el-button><el-button size="small" round :disabled="!nextEpisode || episodeSwitchBusy" @click="switchEpisode(nextEpisode)">下一集 ›</el-button></nav><span class="episodeSaved">● {{ editingShotPrompt ? '未保存' : generationSettingsBusy || shotBusy ? '正在处理' : '已保存' }}</span><div class="episodeHeaderTools"><generationModelMenu v-model="videoModel" :options="generationModelOptions.video" :defaultLabel="defaultVideoModelLabel" :disabled="shotBusy || videoBatchRunning || activeEpisodeShot?.video_status === 'processing'" /><el-select class="compactSetting" :modelValue="videoModel === 'pippit' ? '自动' : currentGenerationOptions.resolution" :disabled="videoModel === 'pippit' || videoBatchRunning || generationSettingsBusy || activeEpisodeShot?.video_status === 'processing'" aria-label="视频清晰度" @change="saveClipGeneration('resolution', $event)"><el-option v-for="value in ['720P', '1080P', '1K', '2K']" :key="value" :label="value.toLowerCase()" :value="value" /></el-select><el-select class="compactSetting" :modelValue="videoModel === 'pippit' ? '自动' : currentGenerationOptions.aspect_ratio" :disabled="videoModel === 'pippit' || videoBatchRunning || generationSettingsBusy || activeEpisodeShot?.video_status === 'processing'" aria-label="视频画幅" @change="saveClipGeneration('aspect_ratio', $event)"><el-option v-for="value in ['9:16', '16:9', '1:1', '3:4', '4:3', '21:9']" :key="value" :label="value" :value="value" /></el-select></div></template>
         <ol v-else class="analysisSteps" aria-label="制作步骤"><li :class="{ active: analysisStep === 1 }">1. 脚本</li><li :class="{ active: analysisStep === 2 }"><button type="button" :disabled="analysisProject.analysis_state?.status !== 'done'" @click="productionView = 'assets'">2. 制作资产库</button></li><li :class="{ active: analysisStep === 3 }"><button type="button" :disabled="analysisProject.analysis_state?.status !== 'done'" @click="productionView = 'episodes'; selectedEpisode = null">3. 剧集</button></li></ol>
         <el-button round size="small" @click="router.push({ path: '/home', query: { section: 'dreamina', projectId: analysisProject?.id } })">即梦画布</el-button>
       </header>
@@ -711,6 +711,23 @@ const episodeItems = computed(() => {
     return { number: group.number, shots: group.shots, characters: group.characters.size, scenes: group.scenes.size, video: cover?.video_url, image: cover?.keyframe_url, completed: shots.filter(shot => shot.video_url).length };
   });
 });
+const previousEpisode = computed(() => {
+  const index = episodeItems.value.findIndex(item => item.number === selectedEpisode.value);
+  return index > 0 ? episodeItems.value[index - 1].number : null;
+});
+const nextEpisode = computed(() => {
+  const index = episodeItems.value.findIndex(item => item.number === selectedEpisode.value);
+  return index >= 0 ? episodeItems.value[index + 1]?.number ?? null : null;
+});
+const episodeSwitchBusy = computed(() => shotBusy.value || generationSettingsBusy.value || videoBatchRunning.value || editingShotPrompt.value);
+function switchEpisode(number: number | null) {
+  if (number === null || episodeSwitchBusy.value) return;
+  selectedShotId.value = null;
+  selectingVideoShots.value = false;
+  selectedVideoShotIds.value = [];
+  videoBatchMessage.value = "";
+  selectedEpisode.value = number;
+}
 const visibleShotItems = computed(() => {
   const ids = new Set(((analysisProject.value?.shots || []) as Record<string, any>[]).filter(shot => Number(shot.episode_no) === selectedEpisode.value).map(shot => shot.id));
   return resultItemsFor("shots").filter(item => ids.has(item.id));
@@ -1148,6 +1165,7 @@ function saveDocumentNode(directory: string, canvasPath: string, nodeId: string,
 
     .analysisHeader {
       &.episodeHeader { min-height: 60px; box-sizing: border-box; padding: 8px 16px; gap: 12px; position: sticky; top: 0; z-index: 3; .analysisProjectName { max-width: 240px; font-size: 12px; } .analysisBack { width: 28px; height: 28px; } }
+      .episodeNavigation { display: flex; gap: 6px; flex-shrink: 0; .el-button + .el-button { margin-left: 0; } }
       .episodeSaved { font-size: 11px; color: var(--el-color-success); white-space: nowrap; }
       .episodeHeaderTools { display: flex; align-items: center; gap: 8px; margin-left: auto; .compactSetting { width: 88px; :deep(.el-select__wrapper) { box-shadow: none; background: transparent; } } }
       .analysisSteps button { border: 0; padding: 0; color: inherit; background: transparent; font: inherit; cursor: pointer; &:disabled { cursor: default; } }
