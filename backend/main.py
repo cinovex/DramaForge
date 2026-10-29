@@ -63,7 +63,7 @@ def resume_video_polling():
             .all()
         )
         for s in stuck:
-            if s.provider_model == "pippit":
+            if s.provider_model == "pippit" or (s.provider_model or "").startswith("dreamina:"):
                 continue
             asyncio.get_event_loop().create_task(
                 _background_generate(s.id, s.provider_task_id,
@@ -167,3 +167,6 @@ from api import dreaminaCanvas as dreaminaCanvasApi
 app.include_router(dreaminaCanvasApi.router)
 from api import localCreation as localCreationApi
 app.include_router(localCreationApi.router)
+
+from api import dreaminaGeneration
+app.include_router(dreaminaGeneration.router)

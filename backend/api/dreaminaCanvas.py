@@ -62,7 +62,7 @@ def runCliSync(args):
     except OSError:
         raise HTTPException(503, detail={"reason": "cli_unavailable", "message": "无法启动即梦画布工具"})
     try:
-        response = json.loads(result.stdout.decode("utf-8"))
+        response = json.loads((result.stdout or result.stderr).decode("utf-8"))
     except (ValueError, UnicodeDecodeError):
         raise HTTPException(502, detail={"reason": "invalid_response", "message": "即梦工具未返回有效结果"})
     if not response.get("ok"):

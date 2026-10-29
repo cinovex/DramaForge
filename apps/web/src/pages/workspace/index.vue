@@ -33,11 +33,11 @@
         <el-tag v-if="analysisProject.generation_settings?.creativePreferences?.styleName" size="small" effect="plain">{{ analysisProject.generation_settings.creativePreferences.styleName }}</el-tag>
         <template v-if="isEpisodeEditor"><nav class="episodeNavigation" aria-label="切换剧集"><el-button size="small" round :disabled="!previousEpisode || episodeSwitchBusy" @click="switchEpisode(previousEpisode)">‹ 上一集</el-button><el-button size="small" round :disabled="!nextEpisode || episodeSwitchBusy" @click="switchEpisode(nextEpisode)">下一集 ›</el-button></nav><span class="episodeSaved">● {{ editingShotPrompt ? '未保存' : generationSettingsBusy || shotBusy ? '正在处理' : '已保存' }}</span><div class="episodeHeaderTools"><generationModelMenu v-model="videoModel" :options="generationModelOptions.video" :defaultLabel="defaultVideoModelLabel" :disabled="shotBusy || videoBatchRunning || activeEpisodeShot?.video_status === 'processing'" /><el-select class="compactSetting" :modelValue="videoModel === 'pippit' ? '自动' : currentGenerationOptions.resolution" :disabled="videoModel === 'pippit' || videoBatchRunning || generationSettingsBusy || activeEpisodeShot?.video_status === 'processing'" aria-label="视频清晰度" @change="saveClipGeneration('resolution', $event)"><el-option v-for="value in ['720P', '1080P', '1K', '2K']" :key="value" :label="value.toLowerCase()" :value="value" /></el-select><el-select class="compactSetting" :modelValue="videoModel === 'pippit' ? '自动' : currentGenerationOptions.aspect_ratio" :disabled="videoModel === 'pippit' || videoBatchRunning || generationSettingsBusy || activeEpisodeShot?.video_status === 'processing'" aria-label="视频画幅" @change="saveClipGeneration('aspect_ratio', $event)"><el-option v-for="value in ['9:16', '16:9', '1:1', '3:4', '4:3', '21:9']" :key="value" :label="value" :value="value" /></el-select></div></template>
         <ol v-else class="analysisSteps" aria-label="制作步骤"><li :class="{ active: analysisStep === 1 }">1. 脚本</li><li :class="{ active: analysisStep === 2 }"><button type="button" :disabled="analysisProject.analysis_state?.status !== 'done'" @click="productionView = 'assets'">2. 制作资产库</button></li><li :class="{ active: analysisStep === 3 }"><button type="button" :disabled="analysisProject.analysis_state?.status !== 'done'" @click="productionView = 'episodes'; selectedEpisode = null">3. 剧集</button></li></ol>
-        <el-button round size="small" @click="router.push({ path: '/home', query: { section: 'dreamina', projectId: analysisProject?.id } })">即梦画布</el-button>
       </header>
       <div v-if="analysisProject.analysis_state?.status === 'done'" class="analysisResults" :class="{ editingEpisode: productionView === 'episodes' && selectedEpisode !== null }">
         <div v-if="!isEpisodeEditor && productionView === 'assets'" class="generationModels"><generationModelMenu v-model="imageModel" :options="generationModelOptions.image" :defaultLabel="defaultImageModelLabel" :disabled="assetGenerating" /></div>
         <p v-if="modelOptionsError" class="generationModelNote" role="alert">{{ modelOptionsError }}</p>
+        <div v-if="dreaminaProgress || activeEpisodeShot?.provider_model?.startsWith('dreamina:')" class="pippitTargetStatus" role="status"><span>{{ dreaminaProgress || '已保存即梦任务，可查询原任务' }}</span><el-button text size="small" :loading="dreaminaBusy" @click="refreshDreaminaJob">刷新即梦原任务</el-button><el-button v-if="activeEpisodeShot?.provider_model?.startsWith('dreamina:') && activeEpisodeShot?.video_status === 'processing'" text size="small" type="warning" :disabled="dreaminaBusy" @click="stopDreaminaWaiting">停止本地等待</el-button></div>
         <div v-if="pippitTargetProgress || activeEpisodeShot?.provider_model === 'pippit' && activeEpisodeShot?.provider_task_id" class="pippitTargetStatus" role="status"><span>{{ pippitTargetProgress || activeEpisodeShot?.last_error || '已保存 Pippit 任务，可查询原任务状态' }}</span><el-button text size="small" :loading="pippitQueryBusy" @click="refreshPippitTarget">刷新原任务状态</el-button><el-button v-if="activeEpisodeShot?.provider_model === 'pippit' && activeEpisodeShot?.video_status === 'processing'" text size="small" type="warning" :loading="stoppingTarget" @click="stopPippitWaiting">停止本地等待</el-button><a v-if="pippitTargetLink" :href="pippitTargetLink" target="_blank" rel="noopener noreferrer">查看 Pippit 任务 ↗</a></div>
         <template v-if="productionView === 'episodes'">
           <div v-if="selectedEpisode === null" class="resultHeading"><div><h1>剧集</h1><p>共 {{ episodeItems.length }} 集</p></div><el-button round @click="productionView = 'assets'">制作资产库</el-button></div>
@@ -112,7 +112,6 @@
       <el-select v-if="analysisProject && activePanel === 'canvas'" :modelValue="''" filterable placeholder="定位剧本 / 提示词" aria-label="定位画布内容" style="width: 180px" @change="focusProductionContent"><el-option v-for="item in productionCanvasContents" :key="item.id" :label="item.label" :value="item.id" /></el-select>
       <el-tag v-if="analysisProject?.generation_settings?.creativePreferences?.styleName" size="small" effect="plain">风格 · {{ analysisProject.generation_settings.creativePreferences.styleName }}</el-tag>
       <el-button v-if="analysisProject?.analysis_state?.status" class="analysisResultsButton" round size="small" @click="analysisDismissed = false">{{ analysisProject.analysis_state.status === 'done' ? '分析结果' : '分析进度' }}</el-button>
-      <el-button round size="small" @click="router.push({ path: '/home', query: { section: 'dreamina', projectId: analysisProject?.id } })">即梦画布</el-button>
       </div>
       <el-segmented :modelValue="activePanel" class="panelSwitcher" :options="panelOptions" size="small" aria-label="切换面板" @change="switchPanel">
         <template #default="{ item }">
@@ -443,6 +442,57 @@ async function refreshPippitTarget() {
   } catch (error) { pippitTargetProgress.value = `原任务查询暂时失败：${error instanceof Error ? error.message : "未知错误"}。未重新提交生成，请稍后刷新或查看官网任务。`; }
   finally { pippitQueryBusy.value = false; }
 }
+const dreaminaProgress = ref("");
+const dreaminaBusy = ref(false);
+async function dreaminaRequest(path: string, body?: unknown) {
+  const response = await fetch(dramaForgeApiUrl(`dreamina/${path}`), body === undefined ? undefined : { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const result = await response.json();
+  if (!response.ok) throw new Error(typeof result.detail === "string" ? result.detail : result.detail?.message || "即梦请求失败");
+  return result;
+}
+async function generateWithDreamina(projectId: number, kind: string, targetId: number, model: string, variant = "base") {
+  dreaminaProgress.value = "正在检查即梦模型、参考素材与积分报价…";
+  try {
+  const job = await dreaminaRequest("prepare", { projectId, kind, targetId, model: model.slice(9), variant, ratio: currentGenerationOptions.value.aspect_ratio, resolution: kind === "video" ? currentGenerationOptions.value.resolution : "2K" });
+  if (job.status === "prepare_failed" || job.status === "preparing") throw new Error("即梦准备未确认完成，请检查连接；没有提交生成");
+  if (job.status === "quoted") {
+    try { await ElMessageBox.confirm(`即梦报价上限 ${job.quote} 积分，生成 1 个${kind === "video" ? "视频" : "图片"}，使用 ${job.model}。确认后上传的参考素材用于本次生成，结果保存到当前项目。是否批准？`, "确认即梦积分", { confirmButtonText: `批准 ${job.quote} 积分`, cancelButtonText: "暂不生成" }); } catch { dreaminaProgress.value = "已保留即梦报价，尚未提交生成"; throw new Error("未批准即梦积分，未提交生成"); }
+    await dreaminaRequest(`projects/${projectId}/jobs/${job.jobId}/run`, { creditCeiling: job.quote });
+  }
+  dreaminaProgress.value = "即梦任务已保存，正在查询原任务…";
+  for (let attempt = 0; attempt < 720; attempt++) {
+    if (targetGenerationAbort.signal.aborted) throw new Error("已离开页面，原任务编号已保存，可稍后查询");
+    const result = await dreaminaRequest(`projects/${projectId}/jobs/${job.jobId}`);
+    if (result.url) { dreaminaProgress.value = "即梦结果已保存到当前项目"; await refreshDramaForgeProject(String(projectId)); return; }
+    if (result.status === "local_stopped") throw new Error("已停止本地等待，远端任务未取消");
+    if (result.status === "failed") throw new Error(result.error || "即梦生成失败");
+    await new Promise(resolve => setTimeout(resolve, 5000));
+  }
+  throw new Error("即梦结果尚未确认，原任务保留，请刷新原任务，不要重复提交");
+  } catch (error) { dreaminaProgress.value = error instanceof Error ? error.message : "即梦请求未确认，请查询原任务"; throw error; }
+  finally { if (!targetGenerationAbort.signal.aborted) await refreshDramaForgeProject(String(projectId)); }
+}
+async function stopDreaminaWaiting() {
+  if (!analysisProject.value || dreaminaBusy.value) return;
+  const jobs = (analysisProject.value.generation_settings as any)?.dreaminaJobs || {};
+  const entry = Object.entries(jobs).reverse().find(([, value]) => (value as any).submitId === activeEpisodeShot.value?.provider_task_id);
+  if (!entry) return ElMessage.warning("没有原任务记录");
+  try { await ElMessageBox.confirm("只停止本地等待，即梦远端未取消，可能仍消耗积分；重新提交可能再次扣费。是否继续？", "停止即梦本地等待", { confirmButtonText: "停止本地等待", cancelButtonText: "继续等待", type: "warning" }); } catch { return; }
+  dreaminaBusy.value = true;
+  try { await dreaminaRequest(`projects/${analysisProject.value.id}/jobs/${entry[0]}/stop-waiting`, {}); videoBatchPauseRequested.value = true; dreaminaProgress.value = "已停止本地等待，远端未取消"; await refreshDramaForgeProject(String(analysisProject.value.id)); }
+  catch (error) { ElMessage.error(error instanceof Error ? error.message : "操作失败"); }
+  finally { dreaminaBusy.value = false; }
+}
+async function refreshDreaminaJob() {
+  if (!analysisProject.value || dreaminaBusy.value) return;
+  const jobs = (analysisProject.value.generation_settings as any)?.dreaminaJobs || {};
+  const entry = Object.entries(jobs).reverse().find(([, value]) => (value as any).kind === "video" && (value as any).targetId === activeEpisodeShot.value?.id);
+  if (!entry) return ElMessage.warning("没有保存的即梦任务");
+  dreaminaBusy.value = true;
+  try { const result = await dreaminaRequest(`projects/${analysisProject.value.id}/jobs/${entry[0]}`); dreaminaProgress.value = result.url ? "即梦结果已保存" : result.error || `即梦原任务状态：${result.status}`; await refreshDramaForgeProject(String(analysisProject.value.id)); }
+  catch (error) { dreaminaProgress.value = error instanceof Error ? error.message : "查询失败，未重复生成"; }
+  finally { dreaminaBusy.value = false; }
+}
 const generationModelOptions = ref<{ image: { id: string; label: string; description?: string }[]; video: { id: string; label: string; description?: string }[] }>({ image: [{ id: "pippit", label: "Pippit" }], video: [{ id: "pippit", label: "Pippit" }] });
 const modelOptionsError = ref("");
 async function loadGenerationModels() {
@@ -465,6 +515,10 @@ async function loadGenerationModels() {
         if (!videoModel.value) videoModel.value = config?.model || "";
       }
     }
+    try {
+      const catalog = await dreaminaRequest("models");
+      for (const kind of ["image", "video"] as const) generationModelOptions.value[kind].push(...catalog[kind].map((item: any) => ({ id: `dreamina:${item.model}`, label: `即梦 · ${item.aliases?.[0] || item.model}`, description: "官方授权生成 · 提交前确认积分" })));
+    } catch { /* The existing providers remain usable when Dreamina is unavailable. */ }
     modelOptionsError.value = "";
   } catch (error) { modelOptionsError.value = error instanceof Error ? error.message : "模型列表读取失败"; }
 }
@@ -487,7 +541,7 @@ async function requestAssetImage(projectId: number, asset: AnalysisResultItem, v
   generatingAssetKey.value = key;
   delete assetImageErrors.value[key];
   try {
-    if (imageModel.value === "pippit") {
+    if (imageModel.value === "pippit" || imageModel.value.startsWith("dreamina:")) {
       const character = asset.kind === "characters" ? ((analysisProject.value?.characters || []) as any[]).find((item: any) => item.id === asset.id) as any : undefined;
       const design = character?.design || {};
       let referencePrompt = variant === "expressions" ? design.expression_sheet_prompt : variant === "turnaround" ? design.turnaround_prompt : ["front", "side", "back", "three_quarter"].includes(variant) ? design.views?.[variant] : asset.prompt;
@@ -498,7 +552,8 @@ async function requestAssetImage(projectId: number, asset: AnalysisResultItem, v
         referencePrompt = body.prompt;
       }
       if (variant !== "base" && !referencePrompt) throw new Error("该类型的提示词尚未完成");
-      await generateWithPippit(projectId, { characters: "character", scenes: "scene", props: "prop" }[asset.kind], asset.id, referencePrompt || asset.description, variant);
+      if (imageModel.value.startsWith("dreamina:")) await generateWithDreamina(projectId, { characters: "character", scenes: "scene", props: "prop" }[asset.kind], asset.id, imageModel.value, variant);
+      else await generateWithPippit(projectId, { characters: "character", scenes: "scene", props: "prop" }[asset.kind], asset.id, referencePrompt || asset.description, variant);
       await refreshDramaForgeProject(String(projectId));
       if (selectedResult.value?.id === asset.id && selectedResult.value.kind === asset.kind) selectedResult.value = resultItemsFor(asset.kind).find(item => item.id === asset.id) || null;
       return;
@@ -654,7 +709,8 @@ async function generateVideoBatch() {
       const current = (analysisProject.value?.shots as any[] || []).find(item => item.id === shot.id);
       if (!current || !canQueueVideo(current)) { selectedVideoShotIds.value = selectedVideoShotIds.value.filter(id => id !== shot.id); continue; }
       videoBatchMessage.value = `批量生成 ${completed + 1}/${shots.length} · 片段 ${shot.shot_no}`;
-      if (chosenModel === "pippit") await generateWithPippit(project.id, "video", shot.id, shot.prompt);
+      if (chosenModel.startsWith("dreamina:")) await generateWithDreamina(project.id, "video", shot.id, chosenModel);
+      else if (chosenModel === "pippit") await generateWithPippit(project.id, "video", shot.id, shot.prompt);
       else {
         const response = await fetch(dramaForgeApiUrl(`projects/${project.id}/shots/${shot.id}/generate?${new URLSearchParams({ model: chosenModel })}`), { method: "POST", signal: targetGenerationAbort.signal });
         const result = await response.json();
@@ -696,6 +752,11 @@ async function generateEpisodeShot() {
   try { await ElMessageBox.confirm(videoModel.value === "pippit" ? "将使用 Pippit 生成当前片段，并上传当前片段的本地参考图。可能消耗积分，API 无法预估费用。是否提交？" : "将使用所选视频模型生成当前片段，可能消耗额度。是否提交？", "生成片段", { confirmButtonText: "提交生成", cancelButtonText: "取消" }); } catch { return; }
   shotBusy.value = true;
   try {
+    if (videoModel.value.startsWith("dreamina:")) {
+      await generateWithDreamina(project.id, "video", shot.id, videoModel.value);
+      ElMessage.success("即梦视频已保存到当前片段");
+      return;
+    }
     if (videoModel.value === "pippit") {
       await generateWithPippit(project.id, "video", shot.id, shot.prompt);
       await refreshDramaForgeProject(String(project.id));

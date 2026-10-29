@@ -11,7 +11,7 @@
         <button class="navItem" :class="{ active: homeSection === 'create' && creationMode === 'marketing' }" type="button" @click="selectCreationMode('marketing')"><icon-speakerphone :size="18" />营销 Agent</button>
         <button class="navItem" :class="{ active: homeSection === 'create' && creationMode === 'script' }" type="button" @click="selectCreationMode('script')"><icon-movie :size="18" />短剧 Agent</button>
         <button class="navItem" type="button" @click="createBlankCanvas"><icon-layout-grid :size="18" />创建画布</button>
-        <button class="navItem" :class="{ active: homeSection === 'dreamina' }" type="button" @click="router.push('/home?section=dreamina')"><icon-layout-grid :size="18" />即梦画布</button>
+        <button class="navItem" :class="{ active: homeSection === 'dreamina' }" type="button" @click="router.push('/home?section=dreamina')"><icon-layout-grid :size="18" />即梦生成</button>
         <span class="navDivider" />
         <span class="navCaption">项目</span>
         <button class="navItem" :class="{ active: homeSection === 'projects' }" type="button" @click="showProjects"><icon-folder :size="18" />项目资源</button>
@@ -36,7 +36,7 @@
     </el-aside>
     <el-container class="homeShell">
       <el-header class="pageHeader">
-        <div class="headerBreadcrumb"><span>工作空间</span><span class="breadcrumbSlash">/</span><strong>{{ homeSection === 'dreamina' ? '即梦画布' : homeSection === 'projects' ? '项目资源' : homeSection === 'assets' ? '资产库' : homeSection === 'skills' ? '技能' : creationMode === 'script' ? '短剧工作室' : creationMode === 'marketing' ? '营销 Agent' : '创作' }}</strong></div>
+        <div class="headerBreadcrumb"><span>工作空间</span><span class="breadcrumbSlash">/</span><strong>{{ homeSection === 'dreamina' ? '即梦生成' : homeSection === 'projects' ? '项目资源' : homeSection === 'assets' ? '资产库' : homeSection === 'skills' ? '技能' : creationMode === 'script' ? '短剧工作室' : creationMode === 'marketing' ? '营销 Agent' : '创作' }}</strong></div>
       </el-header>
       <el-main class="pageContent">
       <dreaminaCanvas v-if="homeSection === 'dreamina'" :key="String(router.currentRoute.value.query.projectId || '')" :localProjectId="Number(router.currentRoute.value.query.projectId) > 0 ? Number(router.currentRoute.value.query.projectId) : undefined" />
