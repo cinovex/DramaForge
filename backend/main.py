@@ -27,7 +27,12 @@ async def on_startup():
     init_db()
     from services.settings_service import ensure_default_settings
     ensure_default_settings()
+    from api.pippitAccounts import ensureDefaultAccount
+    from database import SessionLocal
+    with SessionLocal() as accountDb: ensureDefaultAccount(accountDb)
     resume_video_polling()
+    from api.videoQueue import restoreQueues
+    restoreQueues()
     from api.pippit import startTargetPolling
     from database import SessionLocal
     from models.drama import pippitTaskRecord
@@ -170,3 +175,9 @@ app.include_router(localCreationApi.router)
 
 from api import dreaminaGeneration
 app.include_router(dreaminaGeneration.router)
+
+from api import videoQueue
+app.include_router(videoQueue.router)
+
+from api import pippitAccounts
+app.include_router(pippitAccounts.router)

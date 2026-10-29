@@ -142,3 +142,28 @@ class pippitTaskRecord(Base):
     result = Column(JSON, default=dict)
     project_id = Column(Integer, ForeignKey("projects.id"), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class videoQueueRecord(Base):
+    __tablename__ = "video_queues"
+    id = Column(String(36), primary_key=True)
+    project_id = Column(Integer, ForeignKey("projects.id"), index=True)
+    episode_no = Column(Integer)
+    model = Column(String(160))
+    status = Column(String(30), default="queued")
+    items = Column(JSON, default=list)
+    credit_ceiling = Column(Integer, nullable=True)
+    reserved_credits = Column(Integer, default=0)
+    pause_requested = Column(Integer, default=0)
+    message = Column(Text, default="")
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class pippitAccountRecord(Base):
+    __tablename__ = "pippit_accounts"
+    id = Column(String(36), primary_key=True)
+    label = Column(String(80))
+    api_key_enc = Column(Text, default="")
+    enabled = Column(Integer, default=1)
+    exhausted = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow)

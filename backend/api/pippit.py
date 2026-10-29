@@ -7,6 +7,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 from typing import Any
+from contextvars import ContextVar
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from pydantic import BaseModel, Field
@@ -20,6 +21,8 @@ import math
 from services import creativePreferences
 
 router = APIRouter(prefix="/api/pippit", tags=["pippit"])
+executionAccount = ContextVar("pippitExecutionAccount", default="default")
+
 max_upload_bytes = 200 * 1024 * 1024
 allowed_types = {"image/png", "image/jpeg", "image/webp", "video/mp4", "video/quicktime", "video/webm"}
 
@@ -36,18 +39,25 @@ def _ensure_skill() -> Path:
     skill_dir = _skill_dir()
     if not (skill_dir / "scripts" / "nest" / "submit_run.py").is_file():
         raise HTTPException(503, "Pippit 技能未安装，请先安装 pippit-skill")
-    if not (codex_home := Path(os.environ.get("CODEX_HOME", Path.home() / ".codex")) / "pippit-skill" / "secrets.json").is_file() and not (os.environ.get("PIPPIT_ACCESS_KEY") or os.environ.get("PippitAccessKey")):
+    if not (codex_home := Path(os.environ.get("CODEX_HOME", Path.home() / ".codex")) / "pippit-skill" / "secrets.json").is_file() and executionAccount.get() == "default" and not (os.environ.get("PIPPIT_ACCESS_KEY") or os.environ.get("PippitAccessKey")):
         raise HTTPException(503, "Pippit API 密钥尚未配置")
     return skill_dir
 
 
 async def _run_skill(script: Path, *args: str, timeout: int = 150) -> dict[str, Any]:
+    from database import SessionLocal
+    from models.drama import pippitAccountRecord
+    from services.crypto import decrypt
+    environment = {**os.environ, "PYTHONIOENCODING": "utf-8"}
+    with SessionLocal() as accountDb:
+        account = accountDb.get(pippitAccountRecord, executionAccount.get())
+        if account and account.api_key_enc: environment["PIPPIT_ACCESS_KEY"] = decrypt(account.api_key_enc)
     try:
         process = await asyncio.to_thread(
             subprocess.run, [sys.executable, str(script), *args],
             stdout=subprocess.PIPE, stderr=subprocess.PIPE,
             cwd=str(script.parent), timeout=timeout,
-            env={**os.environ, "PYTHONIOENCODING": "utf-8"},
+            env=environment,
         )
         stdout, stderr = process.stdout, process.stderr
     except subprocess.TimeoutExpired as exc:
@@ -147,14 +157,21 @@ async def generateTarget(body: TargetRequest, db: Session = Depends(get_db)):
             if binding.get("kind") == body.kind and binding.get("target_id") == body.target_id and binding.get("variant", "base") == body.variant and not binding.get("bound_url") and not binding.get("detached") and task.status not in {"failed", "failure", "error", "canceled", "cancelled", "requires_action", "requires_user_input", "interaction_required"}:
                 startTargetPolling(task.thread_id, task.run_id)
                 return {"thread_id": task.thread_id, "run_id": task.run_id, "web_thread_link": task.web_thread_link, "resumed": True}
-        return await submitTarget(body, db)
+        from api.pippitAccounts import ensureDefaultAccount
+        from models.drama import pippitAccountRecord
+        ensureDefaultAccount(db)
+        account = db.query(pippitAccountRecord).filter_by(enabled=1, exhausted=0).order_by(pippitAccountRecord.created_at).first()
+        if not account: raise HTTPException(409, "没有可用的 Pippit 账号，请添加账号或在充值后解除积分不足标记")
+        token = executionAccount.set(account.id)
+        try: return await submitTarget(body, db)
+        finally: executionAccount.reset(token)
 
 
 async def submitTarget(body: TargetRequest, db: Session):
     from services.director_design import ensure_project_idle
     ensure_project_idle(body.project_id, db)
     if body.kind != "character" and body.variant != "base": raise HTTPException(422, "该素材只支持主参考")
-    binding = body.model_dump(exclude={"message"})
+    binding = {**body.model_dump(exclude={"message"}), "accountId": executionAccount.get()}
     asset = targetAsset(db, binding)
     if body.kind != "video":
         binding["previous_url"] = ((asset.reference_images or {}).get(body.variant) if body.variant != "base" else asset.base_image_url) if body.kind == "character" else asset.image_url
@@ -219,6 +236,10 @@ async def pollTarget(threadId, runId):
                 if task:
                     task.result = {**(task.result or {}), "binding_error": str(exc.detail)}
                     creditFailure = any(text in str(exc.detail).lower() for text in ("not enough credits", "not have enough credits", "insufficient credits", "积分不足"))
+                    if creditFailure:
+                        from models.drama import pippitAccountRecord
+                        account = db.get(pippitAccountRecord, (task.result or {}).get("binding", {}).get("accountId", "default"))
+                        if account: account.exhausted = 1
                     if exc.status_code in {400, 404, 409} or creditFailure:
                         task.status = "failed"
                         binding = (task.result or {}).get("binding", {})
@@ -226,7 +247,7 @@ async def pollTarget(threadId, runId):
                             asset = db.query(Shot).filter_by(id=binding["target_id"], project_id=binding["project_id"]).first()
                             if asset and asset.provider_task_id == runId:
                                 asset.video_status = "failed"
-                                asset.last_error = "Pippit 积分不足，生成失败；未自动重试或切换账号。" if creditFailure else str(exc.detail)
+                                asset.last_error = "Pippit 积分不足，原任务已结束；单次生成不自动重试，后台队列可按账号池接力。" if creditFailure else str(exc.detail)
                     db.commit()
                 if exc.status_code in {400, 404, 409} or any(text in str(exc.detail).lower() for text in ("not enough credits", "not have enough credits", "insufficient credits", "积分不足")):
                     return
@@ -400,6 +421,14 @@ async def submit_run(body: SubmitRequest, db: Session = Depends(get_db)):
 
 @router.post("/thread")
 async def get_thread(body: ThreadRequest, db: Session = Depends(get_db)):
+    task = db.query(pippitTaskRecord).filter_by(run_id=body.run_id, thread_id=body.thread_id).first()
+    accountId = (task.result or {}).get("binding", {}).get("accountId", "default") if task else "default"
+    token = executionAccount.set(accountId)
+    try: return await queryThread(body, db)
+    finally: executionAccount.reset(token)
+
+
+async def queryThread(body: ThreadRequest, db: Session):
     savedTask = db.query(pippitTaskRecord).filter_by(run_id=body.run_id, thread_id=body.thread_id).first()
     if savedTask and (savedTask.result or {}).get("binding", {}).get("detached"):
         return {"status": "local_stopped", "binding": savedTask.result["binding"]}

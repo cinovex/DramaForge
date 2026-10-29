@@ -31,12 +31,13 @@
         <button class="analysisBack" type="button" :aria-label="isEpisodeEditor ? '返回剧集' : '返回项目资源'" @click="isEpisodeEditor ? selectedEpisode = null : router.push('/home?section=projects')">‹</button>
         <span class="analysisProjectName">{{ isEpisodeEditor ? `第 ${selectedEpisode} 集 · ${analysisProject.name}` : analysisProject.name }}</span>
         <el-tag v-if="analysisProject.generation_settings?.creativePreferences?.styleName" size="small" effect="plain">{{ analysisProject.generation_settings.creativePreferences.styleName }}</el-tag>
-        <template v-if="isEpisodeEditor"><nav class="episodeNavigation" aria-label="切换剧集"><el-button size="small" round :disabled="!previousEpisode || episodeSwitchBusy" @click="switchEpisode(previousEpisode)">‹ 上一集</el-button><el-button size="small" round :disabled="!nextEpisode || episodeSwitchBusy" @click="switchEpisode(nextEpisode)">下一集 ›</el-button></nav><span class="episodeSaved">● {{ editingShotPrompt ? '未保存' : generationSettingsBusy || shotBusy ? '正在处理' : '已保存' }}</span><div class="episodeHeaderTools"><generationModelMenu v-model="videoModel" :options="generationModelOptions.video" :defaultLabel="defaultVideoModelLabel" :disabled="shotBusy || videoBatchRunning || activeEpisodeShot?.video_status === 'processing'" /><el-select class="compactSetting" :modelValue="videoModel === 'pippit' ? '自动' : currentGenerationOptions.resolution" :disabled="videoModel === 'pippit' || videoBatchRunning || generationSettingsBusy || activeEpisodeShot?.video_status === 'processing'" aria-label="视频清晰度" @change="saveClipGeneration('resolution', $event)"><el-option v-for="value in ['720P', '1080P', '1K', '2K']" :key="value" :label="value.toLowerCase()" :value="value" /></el-select><el-select class="compactSetting" :modelValue="videoModel === 'pippit' ? '自动' : currentGenerationOptions.aspect_ratio" :disabled="videoModel === 'pippit' || videoBatchRunning || generationSettingsBusy || activeEpisodeShot?.video_status === 'processing'" aria-label="视频画幅" @change="saveClipGeneration('aspect_ratio', $event)"><el-option v-for="value in ['9:16', '16:9', '1:1', '3:4', '4:3', '21:9']" :key="value" :label="value" :value="value" /></el-select></div></template>
+        <template v-if="isEpisodeEditor"><el-button size="small" round @click="pippitAccountsVisible = true">Pippit 账号</el-button><nav class="episodeNavigation" aria-label="切换剧集"><el-button size="small" round :disabled="!previousEpisode || episodeSwitchBusy" @click="switchEpisode(previousEpisode)">‹ 上一集</el-button><el-button size="small" round :disabled="!nextEpisode || episodeSwitchBusy" @click="switchEpisode(nextEpisode)">下一集 ›</el-button></nav><span class="episodeSaved">● {{ editingShotPrompt ? '未保存' : generationSettingsBusy || shotBusy ? '正在处理' : '已保存' }}</span><div class="episodeHeaderTools"><generationModelMenu v-model="videoModel" :options="generationModelOptions.video" :defaultLabel="defaultVideoModelLabel" :disabled="shotBusy || videoBatchRunning || activeEpisodeShot?.video_status === 'processing'" /><el-select class="compactSetting" :modelValue="videoModel === 'pippit' ? '自动' : currentGenerationOptions.resolution" :disabled="videoModel === 'pippit' || videoBatchRunning || generationSettingsBusy || activeEpisodeShot?.video_status === 'processing'" aria-label="视频清晰度" @change="saveClipGeneration('resolution', $event)"><el-option v-for="value in ['720P', '1080P', '1K', '2K']" :key="value" :label="value.toLowerCase()" :value="value" /></el-select><el-select class="compactSetting" :modelValue="videoModel === 'pippit' ? '自动' : currentGenerationOptions.aspect_ratio" :disabled="videoModel === 'pippit' || videoBatchRunning || generationSettingsBusy || activeEpisodeShot?.video_status === 'processing'" aria-label="视频画幅" @change="saveClipGeneration('aspect_ratio', $event)"><el-option v-for="value in ['9:16', '16:9', '1:1', '3:4', '4:3', '21:9']" :key="value" :label="value" :value="value" /></el-select></div></template>
         <ol v-else class="analysisSteps" aria-label="制作步骤"><li :class="{ active: analysisStep === 1 }">1. 脚本</li><li :class="{ active: analysisStep === 2 }"><button type="button" :disabled="analysisProject.analysis_state?.status !== 'done'" @click="productionView = 'assets'">2. 制作资产库</button></li><li :class="{ active: analysisStep === 3 }"><button type="button" :disabled="analysisProject.analysis_state?.status !== 'done'" @click="productionView = 'episodes'; selectedEpisode = null">3. 剧集</button></li></ol>
       </header>
       <div v-if="analysisProject.analysis_state?.status === 'done'" class="analysisResults" :class="{ editingEpisode: productionView === 'episodes' && selectedEpisode !== null }">
         <div v-if="!isEpisodeEditor && productionView === 'assets'" class="generationModels"><generationModelMenu v-model="imageModel" :options="generationModelOptions.image" :defaultLabel="defaultImageModelLabel" :disabled="assetGenerating" /></div>
         <p v-if="modelOptionsError" class="generationModelNote" role="alert">{{ modelOptionsError }}</p>
+        <pippitAccounts v-model="pippitAccountsVisible" />
         <div v-if="dreaminaProgress || activeEpisodeShot?.provider_model?.startsWith('dreamina:')" class="pippitTargetStatus" role="status"><span>{{ dreaminaProgress || '已保存即梦任务，可查询原任务' }}</span><el-button text size="small" :loading="dreaminaBusy" @click="refreshDreaminaJob">刷新即梦原任务</el-button><el-button v-if="activeEpisodeShot?.provider_model?.startsWith('dreamina:') && activeEpisodeShot?.video_status === 'processing'" text size="small" type="warning" :disabled="dreaminaBusy" @click="stopDreaminaWaiting">停止本地等待</el-button></div>
         <div v-if="pippitTargetProgress || activeEpisodeShot?.provider_model === 'pippit' && activeEpisodeShot?.provider_task_id" class="pippitTargetStatus" role="status"><span>{{ pippitTargetProgress || activeEpisodeShot?.last_error || '已保存 Pippit 任务，可查询原任务状态' }}</span><el-button text size="small" :loading="pippitQueryBusy" @click="refreshPippitTarget">刷新原任务状态</el-button><el-button v-if="activeEpisodeShot?.provider_model === 'pippit' && activeEpisodeShot?.video_status === 'processing'" text size="small" type="warning" :loading="stoppingTarget" @click="stopPippitWaiting">停止本地等待</el-button><a v-if="pippitTargetLink" :href="pippitTargetLink" target="_blank" rel="noopener noreferrer">查看 Pippit 任务 ↗</a></div>
         <template v-if="productionView === 'episodes'">
@@ -51,7 +52,7 @@
             <aside class="productionLibrary"><h2>制作资产库</h2><input v-model="assetSearch" type="search" placeholder="搜索资产库" aria-label="搜索资产库" /><section v-for="group in episodeAssetGroups" :key="group.key"><h3>{{ group.label }}</h3><button v-for="asset in group.items" :key="asset.id" type="button" class="libraryAsset" @click="selectedResult = asset"><div><img v-if="asset.image" :src="asset.image" :alt="asset.name" /><icon-file-text v-else :size="20" /></div><span>{{ asset.name }}<small>{{ asset.image ? '参考图已就绪' : '参考图待生成' }}</small></span></button></section></aside>
             <div v-if="activeEpisodeShot" class="clipScript"><header><h2>片段 {{ String(activeEpisodeShot.shot_no).padStart(2, '0') }}</h2><span>{{ activeEpisodeShot.duration }} 秒 · {{ shotStatusText(activeEpisodeShot) }}</span></header><div class="clipReferences"><button v-for="asset in activeShotAssets" :key="`${asset.kind}-${asset.id}`" type="button" :class="{ missingReference: !asset.image }" @click="selectedResult = asset"><img v-if="asset.image" :src="asset.image" :alt="asset.name" /><span>{{ asset.name }}</span><small v-if="!asset.image">待设置参考图</small></button></div><article class="clipPrompt"><h3>{{ activeEpisodeShot.title }}</h3><p>{{ activeEpisodeShot.scene_name }} · {{ (activeEpisodeShot.character_names || []).join('、') }}</p><textarea v-if="editingShotPrompt" v-model="shotPromptDraft" aria-label="编辑分镜提示词" /><p v-else class="scriptText">{{ activeEpisodeShot.prompt }}</p><details><summary>镜头设计与首帧提示词</summary><p class="scriptText">{{ designText(activeEpisodeShot.direction) }}</p><p class="scriptText">{{ activeEpisodeShot.keyframe_prompt }}</p></details><footer><el-button round :disabled="shotBusy || videoBatchRunning || activeEpisodeShot.video_status === 'processing'" @click="editingShotPrompt ? saveEpisodeShot() : startEditingShot()">{{ editingShotPrompt ? '保存' : '编辑' }}</el-button><el-button v-if="editingShotPrompt" round @click="editingShotPrompt = false">取消</el-button><el-button type="primary" round :disabled="videoBatchRunning" :loading="shotBusy || activeEpisodeShot.video_status === 'processing'" @click="generateEpisodeShot">生成视频</el-button></footer></article><p v-if="activeEpisodeShot.last_error" class="clipError" role="alert">{{ activeEpisodeShot.last_error }}</p></div>
             <aside v-if="activeEpisodeShot" class="clipPreview"><video v-if="activeEpisodeShot.video_url" :key="activeEpisodeShot.video_url" :src="activeEpisodeShot.video_url" controls :poster="activeEpisodeShot.keyframe_url || undefined" /><div v-else class="emptyClipPreview"><icon-file-text :size="30" /><p>{{ activeEpisodeShot.video_status === 'processing' ? '视频正在生成…' : '生成的片段将会显示在这里' }}</p></div></aside>
-            <section class="clipTimelineArea"><header class="clipBatchTools"><span>{{ videoBatchMessage || '本集片段' }}</span><template v-if="videoBatchRunning"><el-button size="small" :disabled="videoBatchPauseRequested" @click="videoBatchPauseRequested = true">{{ videoBatchPauseRequested ? '完成当前片段后暂停' : '暂停后续片段' }}</el-button></template><template v-else-if="selectingVideoShots"><el-button size="small" @click="selectedVideoShotIds = eligibleVideoShots.map(shot => shot.id)">全选待生成</el-button><el-button size="small" @click="selectingVideoShots = false">取消</el-button><el-button size="small" type="primary" :disabled="!selectedVideoShotIds.length || shotBusy" @click="generateVideoBatch">批量生成 · {{ selectedVideoShotIds.length }}</el-button></template><el-button v-else size="small" :disabled="shotBusy" @click="selectingVideoShots = true; selectedVideoShotIds = []">选择片段 · 批量生成</el-button></header><nav class="clipTimeline" aria-label="片段列表"><button v-for="shot in episodeShots" :key="shot.id" type="button" :class="{ active: activeEpisodeShot?.id === shot.id, selectedClip: selectingVideoShots && selectedVideoShotIds.includes(shot.id) }" :aria-pressed="selectingVideoShots ? selectedVideoShotIds.includes(shot.id) : activeEpisodeShot?.id === shot.id" @click="chooseTimelineShot(shot)"><div><video v-if="shot.video_url" :key="shot.video_url" :src="shot.video_url" :poster="shot.keyframe_url || undefined" muted playsinline preload="metadata" aria-label="已生成视频缩略图" @loadedmetadata="seekThumbnail" /><img v-else-if="shot.keyframe_url" :src="shot.keyframe_url" alt="" /><icon-file-text v-else :size="20" /><span v-if="selectingVideoShots" class="clipCheck">{{ selectedVideoShotIds.includes(shot.id) ? '✓' : canQueueVideo(shot) ? '○' : '—' }}</span><span v-else-if="shot.video_url" class="clipPlay">▶</span></div><span>片段 {{ String(shot.shot_no).padStart(2, '0') }} · {{ shot.duration }}s</span><small>{{ shotStatusText(shot) }}</small></button></nav></section>
+            <section class="clipTimelineArea"><header class="clipBatchTools"><span>{{ videoBatchMessage || '本集片段' }}</span><template v-if="videoBatchRunning"><el-button size="small" :disabled="videoBatchPauseRequested" @click="controlVideoQueue('pause')">{{ videoBatchPauseRequested ? '完成当前片段后暂停' : '暂停后续片段' }}</el-button></template><template v-else-if="activeVideoQueue?.status === 'paused'"><el-button size="small" @click="controlVideoQueue('resume')">继续后台队列</el-button><el-button size="small" @click="controlVideoQueue('stop')">结束队列</el-button></template><template v-else-if="selectingVideoShots"><el-button size="small" @click="selectedVideoShotIds = eligibleVideoShots.map(shot => shot.id)">全选待生成</el-button><el-button size="small" @click="selectingVideoShots = false">取消</el-button><el-button size="small" type="primary" :disabled="!selectedVideoShotIds.length || shotBusy" @click="generateVideoBatch">批量生成 · {{ selectedVideoShotIds.length }}</el-button></template><el-button v-else size="small" :disabled="shotBusy" @click="selectingVideoShots = true; selectedVideoShotIds = []">选择片段 · 批量生成</el-button></header><nav class="clipTimeline" aria-label="片段列表"><button v-for="shot in episodeShots" :key="shot.id" type="button" :class="{ active: activeEpisodeShot?.id === shot.id, selectedClip: selectingVideoShots && selectedVideoShotIds.includes(shot.id) }" :aria-pressed="selectingVideoShots ? selectedVideoShotIds.includes(shot.id) : activeEpisodeShot?.id === shot.id" @click="chooseTimelineShot(shot)"><div><video v-if="shot.video_url" :key="shot.video_url" :src="shot.video_url" :poster="shot.keyframe_url || undefined" muted playsinline preload="metadata" aria-label="已生成视频缩略图" @loadedmetadata="seekThumbnail" /><img v-else-if="shot.keyframe_url" :src="shot.keyframe_url" alt="" /><icon-file-text v-else :size="20" /><span v-if="selectingVideoShots" class="clipCheck">{{ selectedVideoShotIds.includes(shot.id) ? '✓' : canQueueVideo(shot) ? '○' : '—' }}</span><span v-else-if="shot.video_url" class="clipPlay">▶</span></div><span>片段 {{ String(shot.shot_no).padStart(2, '0') }} · {{ shot.duration }}s</span><small>{{ shotStatusText(shot) }}</small></button></nav></section>
           </div>
         </template>
         <template v-else>
@@ -232,6 +233,7 @@ import type { DocumentNodeOptions } from "./panels/canvas/canvasFiles";
 import workspaceMenu from "./components/workspaceMenu.vue";
 import floatingAgent from "./components/floatingAgent.vue";
 import pippitCreator from "./components/pippitCreator.vue";
+import pippitAccounts from "./components/pippitAccounts.vue";
 import generationModelMenu from "./components/generationModelMenu.vue";
 
 const documentPanel = defineAsyncComponent(() => import("./panels/document/index.vue"));
@@ -442,6 +444,7 @@ async function refreshPippitTarget() {
   } catch (error) { pippitTargetProgress.value = `原任务查询暂时失败：${error instanceof Error ? error.message : "未知错误"}。未重新提交生成，请稍后刷新或查看官网任务。`; }
   finally { pippitQueryBusy.value = false; }
 }
+const pippitAccountsVisible = ref(false);
 const dreaminaProgress = ref("");
 const dreaminaBusy = ref(false);
 async function dreaminaRequest(path: string, body?: unknown) {
@@ -700,43 +703,47 @@ async function generateVideoBatch() {
     const missing = assets.filter(asset => asset.kind === "characters" ? (shot.character_names || []).includes(asset.name) && !asset.image : asset.name === shot.scene_name && !asset.image);
     if ((chosenModel === "pippit" || mode === "auto" || mode === "reference") && missing.length) return ElMessage.warning(`片段 ${shot.shot_no} 缺少参考图：${missing.map(asset => asset.name).join("、")}`);
   }
-  try { await ElMessageBox.confirm(`将使用 ${generationModelOptions.value.video.find(model => model.id === chosenModel)?.label || chosenModel} 依次生成所选 ${shots.length} 个片段，可能消耗额度，费用以平台实际为准。跳过已有视频和正在生成的片段；失败或状态无法确认时停止，不自动换账号或重复提交。离开本页将暂停尚未提交的片段，已提交任务仍在后台继续。是否开始？`, "批量生成视频", { confirmButtonText: "确认批量生成", cancelButtonText: "取消" }); } catch { return; }
-  videoBatchRunning.value = true; videoBatchPauseRequested.value = false; selectingVideoShots.value = false;
-  let completed = 0;
+  let creditCeiling: number | undefined;
+  if (chosenModel.startsWith("dreamina:")) {
+    try { const result = await ElMessageBox.prompt("请输入本次所有所选片段合计允许使用的即梦积分上限。后台逐项报价，超过剩余额度就停止，不自动降档。", "批量积分总上限", { inputPattern: /^\d+$/, inputErrorMessage: "请输入非负整数", confirmButtonText: "设置上限", cancelButtonText: "取消" }); creditCeiling = Number(result.value); } catch { return; }
+  }
+  try { await ElMessageBox.confirm(`将使用 ${generationModelOptions.value.video.find(model => model.id === chosenModel)?.label || chosenModel} 依次生成所选 ${shots.length} 个片段，可能消耗额度。${creditCeiling === undefined ? '费用以平台实际为准。' : `本次即梦总积分上限 ${creditCeiling}。`}关闭页面后后台仍继续，服务重启后恢复原队列。${chosenModel === "pippit" ? "原任务明确积分不足时，队列会切换到下一个启用账号并复用同一套本地参考资产；" : ""}其他失败或状态无法确认会停止，不重复提交未知任务。是否开始？`, "后台批量生成视频", { confirmButtonText: "确认后台生成", cancelButtonText: "取消" }); } catch { return; }
   try {
-    for (const shot of shots) {
-      if (videoBatchPauseRequested.value || targetGenerationAbort.signal.aborted) break;
-      const current = (analysisProject.value?.shots as any[] || []).find(item => item.id === shot.id);
-      if (!current || !canQueueVideo(current)) { selectedVideoShotIds.value = selectedVideoShotIds.value.filter(id => id !== shot.id); continue; }
-      videoBatchMessage.value = `批量生成 ${completed + 1}/${shots.length} · 片段 ${shot.shot_no}`;
-      if (chosenModel.startsWith("dreamina:")) await generateWithDreamina(project.id, "video", shot.id, chosenModel);
-      else if (chosenModel === "pippit") await generateWithPippit(project.id, "video", shot.id, shot.prompt);
-      else {
-        const response = await fetch(dramaForgeApiUrl(`projects/${project.id}/shots/${shot.id}/generate?${new URLSearchParams({ model: chosenModel })}`), { method: "POST", signal: targetGenerationAbort.signal });
-        const result = await response.json();
-        if (!response.ok) throw new Error(typeof result.detail === "string" ? result.detail : "提交未确认，请先核对原任务");
-        let finished = false;
-        for (let attempt = 0; attempt < 720; attempt++) {
-          if (targetGenerationAbort.signal.aborted) throw new Error("页面已离开，已提交任务继续执行");
-          const response = await fetch(dramaForgeApiUrl(`projects/${project.id}`), { signal: targetGenerationAbort.signal });
-          if (!response.ok) throw new Error("查询失败，请先核对原任务，不要重复生成");
-          const fresh = await response.json();
-          window.dispatchEvent(new CustomEvent("dramaforge:project-update", { detail: fresh }));
-          const current = fresh.shots.find((item: any) => item.id === shot.id);
-          if (current?.video_url) { finished = true; break; }
-          if (current?.video_status === "failed") throw new Error(current.last_error || "片段生成失败");
-          await new Promise(resolve => setTimeout(resolve, 5000));
-        }
-        if (!finished) throw new Error("仍未确认生成结果，后续片段已暂停");
-      }
-      completed++;
-      selectedVideoShotIds.value = selectedVideoShotIds.value.filter(id => id !== shot.id);
-      await refreshDramaForgeProject(String(project.id));
-    }
-    videoBatchMessage.value = `${completed === shots.length ? '批量完成' : '队列已暂停'}：已完成 ${completed}/${shots.length} 个片段`;
-  } catch (error) { videoBatchMessage.value = `队列已停止，完成 ${completed}/${shots.length}：${error instanceof Error ? error.message : '请求异常'}。未自动重新提交。`; }
-  finally { videoBatchRunning.value = false; if (!targetGenerationAbort.signal.aborted) await refreshDramaForgeProject(String(project.id)); }
+    const response = await fetch(dramaForgeApiUrl(`projects/${project.id}/video-queues`), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ requestId: crypto.randomUUID(), episode: selectedEpisode.value, shotIds: shots.map(shot => shot.id), model: chosenModel, creditCeiling }) });
+    const result = await response.json();
+    if (!response.ok) throw new Error(typeof result.detail === "string" ? result.detail : "队列提交未确认，请刷新原队列，避免重复提交");
+    applyVideoQueue(result);
+    selectingVideoShots.value = false; selectedVideoShotIds.value = [];
+    ElMessage.success("后台队列已保存，可关闭页面");
+  } catch (error) { ElMessage.error(error instanceof Error ? error.message : "队列提交未确认"); }
 }
+const activeVideoQueue = ref<any>();
+let videoQueueTimer: ReturnType<typeof setTimeout> | undefined;
+function applyVideoQueue(queue: any) {
+  activeVideoQueue.value = queue;
+  videoBatchRunning.value = !!queue && ["queued", "running"].includes(queue.status);
+  videoBatchPauseRequested.value = !!queue?.pauseRequested;
+  videoBatchMessage.value = queue ? `${queue.message || '后台队列已保存'} · ${queue.completed}/${queue.total}` : "";
+}
+async function refreshVideoQueue() {
+  const projectId = analysisProject.value?.id;
+  if (projectId && !targetGenerationAbort.signal.aborted) {
+    try { const response = await fetch(dramaForgeApiUrl(`projects/${projectId}/video-queues`)); if (response.ok) { const queues = await response.json(); const wasRunning = videoBatchRunning.value; if (analysisProject.value?.id === projectId) applyVideoQueue(queues[0]); if (queues[0]?.status === "running" || wasRunning) await refreshDramaForgeProject(String(projectId)); } } catch { /* Keep the last confirmed queue state on transient connection errors. */ }
+  }
+  if (!targetGenerationAbort.signal.aborted) videoQueueTimer = setTimeout(() => void refreshVideoQueue(), 5000);
+}
+async function controlVideoQueue(action: "pause" | "resume" | "stop") {
+  if (!analysisProject.value || !activeVideoQueue.value) return;
+  try {
+    const response = await fetch(dramaForgeApiUrl(`projects/${analysisProject.value.id}/video-queues/${activeVideoQueue.value.id}/control`), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action }) });
+    const result = await response.json();
+    if (!response.ok) throw new Error(typeof result.detail === "string" ? result.detail : "队列操作失败");
+    applyVideoQueue(result);
+  } catch (error) { ElMessage.error(error instanceof Error ? error.message : "队列操作失败"); }
+}
+onMounted(() => { void refreshVideoQueue(); });
+onScopeDispose(() => { if (videoQueueTimer) clearTimeout(videoQueueTimer); });
+
 async function generateEpisodeShot() {
   const shot = activeEpisodeShot.value;
   const project = analysisProject.value;
@@ -797,7 +804,7 @@ const nextEpisode = computed(() => {
   const index = episodeItems.value.findIndex(item => item.number === selectedEpisode.value);
   return index >= 0 ? episodeItems.value[index + 1]?.number ?? null : null;
 });
-const episodeSwitchBusy = computed(() => shotBusy.value || generationSettingsBusy.value || videoBatchRunning.value || editingShotPrompt.value);
+const episodeSwitchBusy = computed(() => shotBusy.value || generationSettingsBusy.value || editingShotPrompt.value);
 function switchEpisode(number: number | null) {
   if (number === null || episodeSwitchBusy.value) return;
   selectedShotId.value = null;

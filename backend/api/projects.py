@@ -375,6 +375,9 @@ def delete_project(project_id: int, db: Session = Depends(get_db)):
     if p.status in ("analyzing", "producing") or db.query(Shot).filter_by(project_id=project_id, video_status="processing").first():
         raise HTTPException(409, "请等待当前任务完成后再删除项目")
 
+    from models.drama import videoQueueRecord
+    if db.query(videoQueueRecord).filter(videoQueueRecord.project_id == project_id, videoQueueRecord.status.in_(["queued", "running"])).first():
+        raise HTTPException(409, "请先暂停后台队列，等待当前片段结束后再删除项目")
     project_urls = _project_media_urls(p)
     project_image_prefix = f"/storage/projects/{project_id}/images/"
     project_image_rows = db.query(ImageSource).filter(
@@ -438,6 +441,7 @@ def delete_project(project_id: int, db: Session = Depends(get_db)):
         root.rename(quarantine)
 
     try:
+        db.query(videoQueueRecord).filter_by(project_id=project_id).delete(synchronize_session=False)
         db.delete(p)
         for row in image_rows:
             db.delete(row)
