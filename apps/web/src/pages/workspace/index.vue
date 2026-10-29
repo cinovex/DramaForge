@@ -38,7 +38,7 @@
       <div v-if="analysisProject.analysis_state?.status === 'done'" class="analysisResults" :class="{ editingEpisode: productionView === 'episodes' && selectedEpisode !== null }">
         <div v-if="!isEpisodeEditor && productionView === 'assets'" class="generationModels"><generationModelMenu v-model="imageModel" :options="generationModelOptions.image" :defaultLabel="defaultImageModelLabel" :disabled="assetGenerating" /></div>
         <p v-if="modelOptionsError" class="generationModelNote" role="alert">{{ modelOptionsError }}</p>
-        <div v-if="pippitTargetProgress || activeEpisodeShot?.provider_model === 'pippit' && activeEpisodeShot?.provider_task_id" class="pippitTargetStatus" role="status"><span>{{ pippitTargetProgress || activeEpisodeShot?.last_error || '已保存 Pippit 任务，可查询原任务状态' }}</span><el-button text size="small" :loading="pippitQueryBusy" @click="refreshPippitTarget">刷新原任务状态</el-button><a v-if="pippitTargetLink" :href="pippitTargetLink" target="_blank" rel="noopener noreferrer">查看 Pippit 任务 ↗</a></div>
+        <div v-if="pippitTargetProgress || activeEpisodeShot?.provider_model === 'pippit' && activeEpisodeShot?.provider_task_id" class="pippitTargetStatus" role="status"><span>{{ pippitTargetProgress || activeEpisodeShot?.last_error || '已保存 Pippit 任务，可查询原任务状态' }}</span><el-button text size="small" :loading="pippitQueryBusy" @click="refreshPippitTarget">刷新原任务状态</el-button><el-button v-if="activeEpisodeShot?.provider_model === 'pippit' && activeEpisodeShot?.video_status === 'processing'" text size="small" type="warning" :loading="stoppingTarget" @click="stopPippitWaiting">停止本地等待</el-button><a v-if="pippitTargetLink" :href="pippitTargetLink" target="_blank" rel="noopener noreferrer">查看 Pippit 任务 ↗</a></div>
         <template v-if="productionView === 'episodes'">
           <div v-if="selectedEpisode === null" class="resultHeading"><div><h1>剧集</h1><p>共 {{ episodeItems.length }} 集</p></div><el-button round @click="productionView = 'assets'">制作资产库</el-button></div>
           <div v-if="selectedEpisode === null" class="episodeGrid">
@@ -388,6 +388,7 @@ async function generateWithPippit(projectId: number, kind: string, targetId: num
     const response = await fetch(dramaForgeApiUrl("pippit/thread"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ thread_id: task.thread_id, run_id: task.run_id }), signal: targetGenerationAbort.signal });
     const result = await response.json();
     if (!response.ok) throw new Error(typeof result.detail === "string" ? result.detail : "Pippit 状态读取失败，可重新点击生成以恢复查询");
+    if (result.status === "local_stopped") throw new Error("已停止本地等待，远端任务未取消");
     if (result.binding?.bound_url) { pippitTargetProgress.value = "Pippit 生成完成，结果已保存到当前项目"; return; }
     const status = String(result.status || "").toLowerCase();
     if (["failed", "failure", "error", "canceled", "cancelled"].includes(status)) throw new Error("Pippit 未完成生成，请查看任务回复");
@@ -401,6 +402,22 @@ async function generateWithPippit(projectId: number, kind: string, targetId: num
     pippitTargetProgress.value = submitted ? `任务已提交，尚未确认生成结果：${message}。请刷新原任务状态，不会重复提交。` : `未确认提交成功：${message}。提交超时也可能已创建远端任务，请先查看官网。`;
     throw error;
   }
+}
+const stoppingTarget = ref(false);
+async function stopPippitWaiting() {
+  const shot = activeEpisodeShot.value;
+  if (!shot || !analysisProject.value || stoppingTarget.value) return;
+  try { await ElMessageBox.confirm("只解除本地生成中状态，不能取消 Pippit 远端任务或退还积分。远端可能仍在生成；重新生成可能再次扣费，请先核对官网任务。是否停止本地等待？", "停止等待", { confirmButtonText: "停止本地等待", cancelButtonText: "继续等待", type: "warning" }); } catch { return; }
+  stoppingTarget.value = true;
+  try {
+    const response = await fetch(dramaForgeApiUrl(`pippit/targets/${analysisProject.value.id}/video/${shot.id}/stop-waiting`), { method: "POST" });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.detail || "操作失败");
+    pippitTargetProgress.value = result.message;
+    videoBatchPauseRequested.value = true;
+    await refreshDramaForgeProject(String(analysisProject.value.id));
+  } catch (error) { ElMessage.error(error instanceof Error ? error.message : "操作失败"); }
+  finally { stoppingTarget.value = false; }
 }
 async function refreshPippitTarget() {
   if (pippitQueryBusy.value) return;

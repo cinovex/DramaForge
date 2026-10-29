@@ -115,13 +115,36 @@ def getTargetTask(projectId: int, kind: str, targetId: int, db: Session = Depend
     raise HTTPException(404, "该素材没有已保存的 Pippit 任务")
 
 
+@router.post("/targets/{projectId}/video/{targetId}/stop-waiting")
+async def stopTargetWaiting(projectId: int, targetId: int, db: Session = Depends(get_db)):
+    asset = targetAsset(db, {"project_id": projectId, "kind": "video", "target_id": targetId})
+    runId = asset.provider_task_id
+    if asset.provider_model != "pippit" or not runId:
+        raise HTTPException(409, "当前片段没有可解除等待的 Pippit 任务")
+    async with importLocks.setdefault(runId, asyncio.Lock()):
+        db.refresh(asset)
+        if asset.video_status != "processing":
+            raise HTTPException(409, "任务已结束，请刷新页面")
+        task = db.query(pippitTaskRecord).filter_by(run_id=runId, project_id=projectId).first()
+        if not task:
+            raise HTTPException(404, "原任务记录不存在，未修改片段")
+        task.result = {**(task.result or {}), "binding": {**(task.result or {}).get("binding", {}), "detached": True}}
+        task.status = "local_stopped"
+        asset.video_status = "failed"
+        asset.last_error = "已停止本地等待；Pippit 远端未取消，可能仍生成并消耗积分。原任务链接保留，重新生成前请先核对官网。"
+        db.commit()
+        polling = targetPolling.get(runId)
+        if polling and not polling.done(): polling.cancel()
+        return {"status": "local_stopped", "message": asset.last_error}
+
+
 @router.post("/generate-target")
 async def generateTarget(body: TargetRequest, db: Session = Depends(get_db)):
     key = (body.project_id, body.kind, body.target_id, body.variant)
     async with targetSubmitLocks.setdefault(key, asyncio.Lock()):
         for task in db.query(pippitTaskRecord).filter_by(project_id=body.project_id).all():
             binding = (task.result or {}).get("binding", {})
-            if binding.get("kind") == body.kind and binding.get("target_id") == body.target_id and binding.get("variant", "base") == body.variant and not binding.get("bound_url") and task.status not in {"failed", "failure", "error", "canceled", "cancelled", "requires_action", "requires_user_input", "interaction_required"}:
+            if binding.get("kind") == body.kind and binding.get("target_id") == body.target_id and binding.get("variant", "base") == body.variant and not binding.get("bound_url") and not binding.get("detached") and task.status not in {"failed", "failure", "error", "canceled", "cancelled", "requires_action", "requires_user_input", "interaction_required"}:
                 startTargetPolling(task.thread_id, task.run_id)
                 return {"thread_id": task.thread_id, "run_id": task.run_id, "web_thread_link": task.web_thread_link, "resumed": True}
         return await submitTarget(body, db)
@@ -195,23 +218,24 @@ async def pollTarget(threadId, runId):
                 task = db.query(pippitTaskRecord).filter_by(run_id=runId).first()
                 if task:
                     task.result = {**(task.result or {}), "binding_error": str(exc.detail)}
-                    if exc.status_code in {400, 404, 409}:
+                    creditFailure = any(text in str(exc.detail).lower() for text in ("not enough credits", "not have enough credits", "insufficient credits", "积分不足"))
+                    if exc.status_code in {400, 404, 409} or creditFailure:
                         task.status = "failed"
                         binding = (task.result or {}).get("binding", {})
                         if binding.get("kind") == "video":
                             asset = db.query(Shot).filter_by(id=binding["target_id"], project_id=binding["project_id"]).first()
                             if asset and asset.provider_task_id == runId:
                                 asset.video_status = "failed"
-                                asset.last_error = str(exc.detail)
+                                asset.last_error = "Pippit 积分不足，生成失败；未自动重试或切换账号。" if creditFailure else str(exc.detail)
                     db.commit()
-                if exc.status_code in {400, 404, 409}:
+                if exc.status_code in {400, 404, 409} or any(text in str(exc.detail).lower() for text in ("not enough credits", "not have enough credits", "insufficient credits", "积分不足")):
                     return
         await asyncio.sleep(5)
 
 
 async def bindTargetResult(task, result, db):
     binding = (task.result or {}).get("binding")
-    if not binding or binding.get("bound_url"):
+    if not binding or binding.get("bound_url") or binding.get("detached"):
         return binding
     status = str(result.get("status", "")).lower()
     if status not in {"completed", "complete", "succeeded", "success", "done"}:
@@ -376,6 +400,9 @@ async def submit_run(body: SubmitRequest, db: Session = Depends(get_db)):
 
 @router.post("/thread")
 async def get_thread(body: ThreadRequest, db: Session = Depends(get_db)):
+    savedTask = db.query(pippitTaskRecord).filter_by(run_id=body.run_id, thread_id=body.thread_id).first()
+    if savedTask and (savedTask.result or {}).get("binding", {}).get("detached"):
+        return {"status": "local_stopped", "binding": savedTask.result["binding"]}
     skill_dir = _ensure_skill()
     result = await _run_skill(
         skill_dir / "scripts" / "nest" / "get_thread.py",
@@ -393,6 +420,8 @@ async def get_thread(body: ThreadRequest, db: Session = Depends(get_db)):
             lock = importLocks.setdefault(body.run_id, asyncio.Lock())
             async with lock:
                 db.refresh(task)
+                if (task.result or {}).get("binding", {}).get("detached"):
+                    return {"status": "local_stopped", "binding": task.result["binding"]}
                 binding = await bindTargetResult(task, result, db)
                 task.result = {**result, "binding": binding}
                 task.status = result.get("status", "unknown")

@@ -34,7 +34,7 @@ async def on_startup():
     with SessionLocal() as db:
         for task in db.query(pippitTaskRecord).all():
             binding = (task.result or {}).get("binding")
-            if binding and not binding.get("bound_url") and task.status not in {"failed", "failure", "error", "canceled", "cancelled", "requires_action", "requires_user_input", "interaction_required"}:
+            if binding and not binding.get("detached") and not binding.get("bound_url") and task.status not in {"failed", "failure", "error", "canceled", "cancelled", "requires_action", "requires_user_input", "interaction_required"}:
                 startTargetPolling(task.thread_id, task.run_id)
     # 分析任务不会在重启后重复调用付费接口，恢复为可重试状态。
     from database import SessionLocal
