@@ -1,5 +1,5 @@
 <template>
-  <el-dialog v-model="visible" title="Pippit 账号池" width="min(620px, calc(100vw - 32px))" @open="loadAccounts">
+  <el-dialog v-model="visible" title="Pippit 账号池" width="min(620px, calc(100vw - 32px))" appendToBody @open="loadAccounts">
     <p>后台队列按启用顺序使用账号。只有原任务明确积分不足才接力；超时、网络和查询异常不会切换。每个账号分别上传同一套本地参考资产。</p>
     <el-alert v-if="error" :title="error" type="error" :closable="false" />
     <div v-for="account in accounts" :key="account.id" class="accountRow"><div><strong>{{ account.label }}</strong><small>{{ account.exhausted ? '积分不足 · 充值后可解除标记' : '待使用 · 未预查余额' }}</small></div><el-button size="small" :disabled="busy" @click="updateAccount(account, !account.enabled)">{{ account.enabled ? '停用' : '启用' }}</el-button><el-button v-if="account.exhausted" size="small" :disabled="busy" @click="updateAccount(account, account.enabled, true)">已充值，解除标记</el-button></div>

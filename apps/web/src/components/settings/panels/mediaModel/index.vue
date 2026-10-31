@@ -1,6 +1,14 @@
 <template>
-  <div v-if="loaded" class="providerList">
+  <div class="providerList">
     <div class="itemList">
+      <el-card class="providerItem" shadow="never">
+        <div class="providerHeader"><div class="providerInfo"><div class="providerHeading"><el-text class="providerName" tag="strong">Pippit</el-text><el-tag size="small" effect="plain">图片 · 视频</el-tag></div><el-text size="small" type="info">管理多个账号，使用同一套项目参考资产</el-text></div></div>
+        <div class="providerFooter"><el-text size="small" type="info">{{ pippitSummary }}</el-text><el-button round @click="accountsVisible = true">管理账号 / 添加 API Key</el-button></div>
+      </el-card>
+      <el-card class="providerItem" shadow="never">
+        <div class="providerHeader"><div class="providerInfo"><div class="providerHeading"><el-text class="providerName" tag="strong">即梦</el-text><el-tag size="small" effect="plain">图片 · 视频</el-tag></div><el-text size="small" type="info">在项目生成菜单中手动选择即梦模型</el-text></div></div>
+        <div class="providerFooter"><el-text size="small" type="info">{{ dreaminaSummary }}</el-text><el-button round @click="dreaminaVisible = true">连接设置</el-button></div>
+      </el-card>
       <el-card v-for="item in sortedProviders" :key="item.fileName" class="providerItem" shadow="never">
         <div class="providerHeader">
           <div v-if="item.icon || item.id.toLowerCase() === 'tfrouter'" class="providerMark" aria-hidden="true">
@@ -37,6 +45,8 @@
     </div>
     <component :is="mediaProviderDialog" v-model="providerDialogVisible" :mode="addMode" @added="saveProviderItem" />
     <component :is="editProviderDialog" v-model="editorVisible" :provider="editingProvider" @saved="saveProviderItem" />
+    <pippitAccounts v-model="accountsVisible" @closed="loadIntegrations" />
+    <el-dialog v-model="dreaminaVisible" title="即梦连接" width="min(760px, calc(100vw - 32px))" appendToBody destroyOnClose @closed="loadIntegrations"><dreaminaCanvas /></el-dialog>
   </div>
 </template>
 
@@ -50,13 +60,29 @@ import type { MediaProvider } from "./types";
 import { settings, saveSettings } from "@/stores/settings";
 import { invalidateNodeModels } from "@toonflow/nodes-scaffold/nodeAi";
 import tfAccount from "../../tfAccount.vue";
+import pippitAccounts from "@/pages/workspace/components/pippitAccounts.vue";
+import dreaminaCanvas from "@/pages/home/dreaminaCanvas.vue";
 
 const { visible = true } = defineProps<{ visible?: boolean }>();
 const mediaProviderDialog = shallowRef<Component>();
 const editProviderDialog = shallowRef<Component>();
 const providers = ref<MediaProvider[]>([]);
 const sortedProviders = computed(() => [...providers.value].sort((a, b) => Number(b.id.toLowerCase() === "tfrouter") - Number(a.id.toLowerCase() === "tfrouter")));
-const loaded = ref(false);
+const accountsVisible = ref(false);
+const dreaminaVisible = ref(false);
+const pippitSummary = ref("正在读取账号配置…");
+const dreaminaSummary = ref("正在检查授权状态…");
+
+async function loadIntegrations() {
+  await Promise.allSettled([
+    axios.get<{ enabled: boolean; exhausted: boolean }[]>("/api/pippit/accounts", { timeout: 15000 }).then(({ data }) => {
+      pippitSummary.value = `${data.length} 个账号 · ${data.filter(account => account.enabled && !account.exhausted).length} 个启用且未标记积分不足；内部模型由 Pippit 服务决定`;
+    }).catch(() => { pippitSummary.value = "账号状态读取失败，可打开账号管理重试"; }),
+    axios.get<{ loggedIn: boolean }>("/api/dreamina-canvas/status", { timeout: 15000 }).then(({ data }) => {
+      dreaminaSummary.value = data.loggedIn ? "国内账号已授权 · 生成权限以账号权益为准" : "国内账号尚未授权";
+    }).catch(() => { dreaminaSummary.value = "连接状态读取失败，可打开连接设置重试"; }),
+  ]);
+}
 const providerDialogVisible = ref(false);
 const editorVisible = ref(false);
 const addMode = ref<"builtin" | "custom">("builtin");
@@ -86,6 +112,7 @@ function refreshInstalled(event: WindowEventMap["toonflow:plugin-installed"]) {
 }
 onMounted(() => {
   void loadProviders();
+  void loadIntegrations();
   window.addEventListener("toonflow:plugin-installed", refreshInstalled);
 });
 onBeforeUnmount(() => {
@@ -100,8 +127,6 @@ async function loadProviders() {
     if (request === loadRequest) providers.value = data.data;
   } catch (error) {
     if (request === loadRequest) ElMessage.error(axios.isAxiosError(error) ? error.response?.data?.message || error.message : "读取媒体供应商失败");
-  } finally {
-    if (request === loadRequest) loaded.value = true;
   }
 }
 
